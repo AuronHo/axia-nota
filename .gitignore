@@ -1,0 +1,23 @@
+# Local tools, Python and caches (all kept inside this folder, never uploaded)
+.venv/
+.python/
+.uv-cache/
+.pip-cache/
+.hf-cache/
+.ollama-models/
+tools/
+serve/cloudflared.exe
+__pycache__/
+*.pyc
+
+# Generated training data and trained models (large)
+data/
+out/
+*.gguf
+*.safetensors
+
+# Old location of the game before it moved to index.html
+game/
+
+# Secrets
+.env

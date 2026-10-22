@@ -1,0 +1,15 @@
+# 1) Convert the trained model to GGUF (see SETUP.md step 14):
+#      python tools\llama.cpp\convert_hf_to_gguf.py out\merged --outfile out\bu-melati-q8_0.gguf --outtype q8_0
+# 2) Build:  ollama create bu-melati -f serve\Modelfile
+# Newer Ollama can't import Qwen2 safetensors directly ("unsupported MLX architecture"), so we go through GGUF.
+FROM ../out/bu-melati-q8_0.gguf
+
+TEMPLATE """{{- range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"
+PARAMETER temperature 0.9
+PARAMETER top_p 0.95
+PARAMETER num_ctx 4096

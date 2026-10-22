@@ -1,0 +1,1655 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Axia Nota</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=Bagel+Fat+One&family=Courier+Prime:wght@400;700&family=Kalam:wght@400;700&display=swap">
+<style>
+/* Layout: one full-screen game view. The 3D office fills the screen; HUD floats on top, the dialogue box
+   sits bottom-left, the nota slides in from the right (a bottom sheet on phones) and the camera reframes around it.
+   Single deliberate look: mint institutional wall, carbon-copy nota, ballpoint blue, rubber-stamp red. */
+:root{
+  --wall:#c9d8ca; --panel:#f3f5ef; --panel-edge:#a9bcab;
+  --fg:#1c2620; --muted:#56655a;
+  --paper:#fffef8; --carbon:#f5c2cf; --rule:#a4c0e2; --pen:#1f3d9a;
+  --stamp:#c22a35; --ok:#2c7a4c; --warn:#d08a1c; --memo:#fbe9a0;
+  --blazer:#7a1d3d; --gold:#d3a02b; --manila:#f1e6c4; --okbg:#dcefe2;
+  --gut-l:max(16px,env(safe-area-inset-left,0px)); --gut-r:max(16px,env(safe-area-inset-right,0px));
+  --f-display:"Bagel Fat One","Arial Black",Impact,sans-serif;
+  --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-hand:"Kalam","Comic Sans MS","Bradley Hand",cursive;
+  --f-mono:"Courier Prime","Courier New",ui-monospace,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{height:100%;box-sizing:border-box}
+body{height:100%;margin:0;overflow:hidden;background:var(--wall);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+button,select{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pen);outline-offset:2px}
+.app{position:relative;width:100%;height:100%;overflow:hidden;background:var(--wall)}
+.stage{position:absolute;inset:0}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* HUD */
+.hud{position:absolute;z-index:6;top:10px;left:var(--gut-l);right:var(--gut-r);display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 14px;pointer-events:none}
+.hud > *{pointer-events:auto}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(24px,3.2vw,36px);line-height:1;letter-spacing:.5px;color:var(--fg);text-shadow:0 2px 0 #fff}
+.brand h1 span{color:var(--stamp)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:center;min-width:0}
+.chip{background:var(--panel);border:2px solid var(--fg);border-radius:10px;padding:3px 9px;display:flex;flex-direction:column;justify-content:center;min-width:56px;box-shadow:0 2px 0 var(--fg)}
+.chip b{font-family:var(--f-mono);font-size:16px;font-variant-numeric:tabular-nums;line-height:1.1}
+.chip i{font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.patience{min-width:150px}
+.meter{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-top:3px}
+.meter span{height:9px;border-radius:2px;background:#d9e2da;transition:background .3s}
+.meter[data-lvl="hi"] span.on{background:var(--ok)}
+.meter[data-lvl="mid"] span.on{background:var(--warn)}
+.meter[data-lvl="lo"] span.on{background:var(--stamp)}
+.tools{display:flex;gap:6px;align-items:center}
+.lang{display:flex;border:2px solid var(--fg);border-radius:10px;overflow:hidden;background:var(--panel);height:38px;box-shadow:0 2px 0 var(--fg)}
+.lang button{border:0;background:transparent;padding:0 10px;font-weight:700;font-size:13px;color:var(--muted)}
+.lang button[aria-pressed="true"]{background:var(--fg);color:var(--panel)}
+.icon{width:38px;height:38px;border:2px solid var(--fg);border-radius:10px;background:var(--panel);color:var(--fg);display:grid;place-items:center;padding:0;box-shadow:0 2px 0 var(--fg)}
+.icon svg{width:20px;height:20px}
+.icon.small{width:32px;height:32px;box-shadow:none}
+
+/* Floating labels that follow the characters */
+.plate,.thought{position:absolute;z-index:3;left:0;top:0;will-change:transform}
+.plate{display:flex;gap:5px;align-items:center;transform:translate(16px,90px)}
+.plate b{background:var(--gold);color:var(--fg);font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--fg);border-radius:6px;padding:1px 8px;white-space:nowrap}
+.plate i{font-style:normal;background:var(--blazer);color:#fff;font-family:var(--f-mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:6px;padding:2px 8px;white-space:nowrap}
+.thought{width:max-content;max-width:min(300px,46vw);background:#fff;border:2.5px solid var(--fg);border-radius:22px;padding:7px 12px;font-family:var(--f-hand);font-size:16px;line-height:1.3;box-shadow:0 3px 0 var(--fg);transform:translate(calc(100vw - 340px),90px)}
+.thought::after{content:"";position:absolute;left:calc(50% - 6px);bottom:-15px;width:11px;height:11px;border:2.5px solid var(--fg);background:#fff;border-radius:50%}
+.thought .who{display:block;font-family:var(--f-mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.nogl{position:absolute;z-index:3;top:50%;left:var(--gut-l);right:var(--gut-r);text-align:center;color:var(--muted);font-size:13px}
+
+/* Dialogue box */
+.dialog{position:absolute;z-index:5;left:var(--gut-l);bottom:14px;width:min(560px,calc(100% - 32px));background:#fff;border:3px solid var(--fg);border-radius:16px;padding:20px 16px 12px;box-shadow:0 5px 0 var(--fg);display:flex;flex-direction:column;gap:8px;transition:transform .35s cubic-bezier(.3,1.3,.5,1),opacity .25s}
+.dialog .name{position:absolute;top:-16px;left:16px;background:var(--blazer);color:#fff;font-family:var(--f-display);font-size:16px;letter-spacing:.5px;border:3px solid var(--fg);border-radius:10px;padding:0 12px;line-height:1.5}
+.say{font-size:17px;font-weight:500;margin:0;text-wrap:pretty;max-height:30vh;overflow:auto}
+.aside{font-size:13.5px;color:var(--muted);font-style:italic;margin:0;padding-top:6px;border-top:1px dashed #cfd6d0}
+.aside::before{content:attr(data-label);font-style:normal;font-weight:700;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-right:6px;color:var(--blazer)}
+.typing{display:inline-flex;gap:5px;padding:6px 0}
+.typing i{width:8px;height:8px;border-radius:50%;background:var(--muted);animation:blink 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+.dlgfoot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ask{display:flex;gap:6px;flex:1 1 220px;min-width:0}
+.ask input{flex:1;min-width:0;border:2px solid var(--panel-edge);border-radius:10px;padding:7px 10px;font:inherit;font-size:14px;background:#fff;color:var(--fg)}
+.status{font-size:12px;color:var(--muted);margin:0}
+.status.bad{color:var(--stamp);font-weight:700}
+.btn{border:2px solid var(--fg);background:var(--fg);color:var(--panel);border-radius:10px;padding:8px 14px;font-weight:700;box-shadow:0 3px 0 #000;transition:transform .08s,box-shadow .08s;white-space:nowrap}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #000}
+.btn.ghost{background:#fff;color:var(--fg);box-shadow:0 3px 0 var(--fg)}
+.btn.red{background:var(--stamp);border-color:var(--stamp);box-shadow:0 3px 0 #7a141b}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.dlgnota{display:none}
+.tab{position:absolute;z-index:5;right:var(--gut-r);bottom:16px;border:3px solid var(--fg);background:var(--paper);color:var(--pen);font-family:var(--f-display);font-size:17px;border-radius:12px;padding:8px 16px;box-shadow:0 4px 0 var(--fg);transform:rotate(-2deg)}
+
+/* Nota panel */
+.notaPanel{position:absolute;z-index:4;right:var(--gut-r);top:72px;bottom:14px;width:min(560px,47vw);display:flex;flex-direction:column;gap:10px;overflow-y:auto;overscroll-behavior:contain;padding:4px 10px 12px 4px;transform:translateX(calc(100% + 60px)) rotate(3deg);transition:transform .45s cubic-bezier(.3,1.2,.5,1)}
+.notaPanel.open{transform:none}
+.panelbar{display:flex;gap:10px;align-items:flex-start}
+.memo{flex:1;min-width:0;position:relative;background:var(--memo);border:2px solid var(--fg);border-radius:4px;padding:10px 12px 9px;transform:rotate(-1deg);box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.memo::before{content:"";position:absolute;top:-9px;left:42%;width:64px;height:16px;background:rgba(255,255,255,.65);border:1px solid rgba(0,0,0,.12);transform:rotate(3deg)}
+.memo b{display:block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--blazer)}
+.memo p{margin:2px 0 0;font-family:var(--f-hand);font-size:16px;line-height:1.3;color:var(--fg)}
+.pad{position:relative;padding:0 8px 10px 0}
+.pad::before{content:"";position:absolute;inset:10px 0 0 10px;background:var(--carbon);border-radius:6px;transform:rotate(1.2deg)}
+.sheet{position:relative;background:var(--paper);border-radius:6px;border:2px solid var(--fg);padding:16px 18px 14px;box-shadow:0 6px 0 rgba(28,38,32,.35);overflow:hidden}
+.sheet::before{content:"";position:absolute;left:0;right:0;top:0;height:12px;background:repeating-linear-gradient(90deg,var(--fg) 0 2px,transparent 2px 9px);opacity:.18}
+.nhead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;align-items:flex-start;border-bottom:2px solid var(--pen);padding-bottom:8px}
+.co{min-width:0}
+.co strong{display:block;font-family:var(--f-display);font-weight:400;font-size:19px;line-height:1.1;color:var(--pen)}
+.co span{font-size:11.5px;color:var(--muted)}
+.ntitle{text-align:right}
+.ntitle b{display:block;font-family:var(--f-display);font-weight:400;font-size:26px;letter-spacing:3px;line-height:1;color:var(--pen)}
+.ntitle span{font-family:var(--f-mono);font-size:14px;font-weight:700;color:var(--stamp);font-variant-numeric:tabular-nums}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 14px;margin:10px 0 8px}
+.field{display:flex;align-items:baseline;gap:8px;min-width:0}
+.field label{font-size:12px;color:var(--pen);white-space:nowrap;font-weight:700}
+.ink{flex:1;min-width:0;border:0;border-bottom:1.5px dotted var(--rule);background:transparent;font-family:var(--f-hand);font-size:18px;color:var(--pen);padding:2px 2px 0}
+.ink:disabled{color:var(--pen);-webkit-text-fill-color:var(--pen);opacity:1}
+.tablebox{overflow-x:auto;margin:0 -4px}
+table{width:100%;min-width:440px;border-collapse:collapse}
+th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--pen);font-weight:700;border:1.5px solid var(--pen);padding:4px 6px;text-align:left;background:#eef3fb}
+td{border-left:1.5px solid var(--pen);border-right:1.5px solid var(--pen);border-bottom:1px solid var(--rule);padding:1px 6px;height:35px}
+tbody tr:last-child td{border-bottom:1.5px solid var(--pen)}
+td .ink{width:100%;border-bottom:0}
+.c-qty{width:68px}.c-price{width:120px}.c-amt{width:126px}
+td.amt{font-family:var(--f-hand);font-size:17px;color:var(--pen);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td input.r{text-align:right}
+tfoot td{border:0;height:auto;padding-top:6px}
+.total{display:flex;justify-content:flex-end;gap:10px;align-items:baseline}
+.total label{font-weight:800;color:var(--pen);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase}
+.total output{font-family:var(--f-hand);font-weight:700;font-size:20px;color:var(--pen);border-bottom:3px double var(--pen);min-width:140px;text-align:right;font-variant-numeric:tabular-nums}
+.nfoot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:10px;align-items:end}
+.sig{text-align:center;font-size:12px;color:var(--pen)}
+.sig .line{height:40px;border-bottom:1.5px solid var(--pen);margin:2px 12px 4px;display:flex;align-items:flex-end;justify-content:center;font-family:var(--f-hand);font-size:25px;font-weight:700;color:var(--pen);transform:rotate(-3deg)}
+.sigbtn{border:1.5px dashed var(--pen);background:transparent;color:var(--pen);border-radius:6px;font-size:12px;font-weight:700;padding:3px 10px}
+.fine{margin-top:10px;border:1.5px solid var(--pen);border-radius:4px;padding:4px 8px;font-size:10.5px;color:var(--pen);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.fine b{letter-spacing:.08em}
+.submitrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:10px}
+.submitrow p{margin:0;font-size:12.5px;color:var(--stamp);font-weight:700;min-height:1em}
+.stamp{position:absolute;left:50%;top:44%;z-index:3;transform:translate(-50%,-50%) rotate(-13deg);border:5px double var(--stamp);color:var(--stamp);font-family:var(--f-mono);font-weight:700;font-size:clamp(26px,4vw,40px);letter-spacing:.12em;text-transform:uppercase;padding:6px 18px;border-radius:8px;mix-blend-mode:multiply;opacity:.85;pointer-events:none;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.stamp.ok{color:var(--ok);border-color:var(--ok)}
+.stamp.hit{animation:thunk .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes thunk{from{transform:translate(-50%,-50%) rotate(-13deg) scale(2.2);opacity:0}to{transform:translate(-50%,-50%) rotate(-13deg) scale(1);opacity:.85}}
+.sheet.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+/* Big verdict stamp over the scene */
+.bigstamp{position:absolute;z-index:7;left:50%;top:42%;transform:translate(-50%,-50%) rotate(-12deg);font-family:var(--f-mono);font-weight:700;font-size:clamp(34px,7vw,72px);letter-spacing:.12em;color:var(--stamp);border:8px double var(--stamp);border-radius:14px;padding:4px 24px;background:rgba(255,254,248,.82);pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+.bigstamp.ok{color:var(--ok);border-color:var(--ok)}
+.bigstamp.hit{animation:bighit 1.7s ease forwards}
+@keyframes bighit{0%{transform:translate(-50%,-50%) rotate(-12deg) scale(2.4);opacity:0}14%{transform:translate(-50%,-50%) rotate(-12deg) scale(1);opacity:1}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(-12deg) scale(1)}}
+
+/* Modals */
+.modal,.over{position:absolute;inset:0;z-index:20;background:rgba(28,38,32,.55);display:flex;align-items:center;justify-content:center;padding:16px var(--gut-r) 16px var(--gut-l)}
+.card{background:var(--panel);border:3px solid var(--fg);border-radius:16px;box-shadow:0 6px 0 var(--fg);width:100%;max-width:440px;max-height:100%;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1.1}
+.card .row{display:flex;flex-direction:column;gap:4px}
+.card label{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.card select,.card input{width:100%;min-width:0;border:2px solid var(--panel-edge);border-radius:8px;padding:7px 9px;background:#fff;color:var(--fg);font:inherit;font-size:14px}
+.card input{font-family:var(--f-mono)}
+.hint{margin:0;font-size:12.5px;color:var(--muted);background:#fff;border-left:3px solid var(--gold);padding:6px 9px;border-radius:0 6px 6px 0}
+.hint code{font-family:var(--f-mono);font-size:12px;background:#f0f3ee;padding:0 4px;border-radius:3px}
+.testout{margin:0;font-size:12.5px;min-height:1em}
+.testout.ok{color:var(--ok);font-weight:700}.testout.bad{color:var(--stamp);font-weight:700}
+.cardfoot{display:flex;justify-content:flex-end;gap:8px}
+.chip.met{background:var(--okbg);border-color:var(--ok)}
+.chip.met b{color:var(--ok)}
+/* Time card shown at the end of each work day */
+.timecard{position:relative;background:var(--manila);border:2px solid var(--fg);border-radius:6px;box-shadow:0 8px 0 rgba(28,38,32,.35);width:100%;max-width:460px;max-height:100%;overflow:auto;padding:16px 18px 16px;transform:rotate(.6deg);display:flex;flex-direction:column;gap:10px}
+.timecard::before{content:"";position:absolute;top:10px;left:50%;width:46px;height:8px;margin-left:-23px;border-radius:4px;background:rgba(28,38,32,.35)}
+.tchead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;border-bottom:2px solid var(--fg);padding:10px 0 6px}
+.tchead h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:26px;line-height:1;color:var(--fg)}
+.tchead span{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tcsub{margin:0;font-weight:700;font-size:15px}
+.tcwrap{overflow-x:auto}
+table.tc{width:100%;min-width:0;border-collapse:collapse;font-family:var(--f-mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+.tc th{font-family:var(--f-body);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;background:transparent;border:0;border-bottom:1.5px solid var(--fg);padding:4px 6px}
+.tc td{border:0;border-bottom:1px dashed rgba(28,38,32,.35);height:32px;padding:2px 6px;color:var(--pen);font-weight:700}
+.tc td:first-child{color:var(--fg);font-family:var(--f-body);font-weight:700}
+.tc tr.now td{background:rgba(255,255,255,.55)}
+.punch{display:inline-block;font-size:11px;letter-spacing:.1em;border:2px solid currentColor;border-radius:4px;padding:0 5px;transform:rotate(-6deg)}
+.punch.pass{color:var(--ok)}.punch.fail{color:var(--stamp)}
+.tcq{margin:0;background:#fff;border:2px solid var(--fg);border-radius:12px;padding:8px 12px;font-size:15px}
+.tcq b{color:var(--blazer)}
+.tcnote{margin:0;font-family:var(--f-hand);font-size:17px;color:var(--pen)}
+.letter.good h2{color:var(--ok)}
+.need{outline:3px dashed var(--stamp)!important;outline-offset:2px;animation:need 1s ease-in-out 2}
+@keyframes need{50%{outline-color:transparent}}
+.btn.no{background:#fff;color:var(--stamp);border-color:var(--stamp);box-shadow:0 3px 0 var(--stamp)}
+/* Cutscenes: letterbox bars, comic captions, day title */
+.bars::before,.bars::after{content:"";position:absolute;left:0;right:0;height:11vh;background:#111712;z-index:8;transition:transform .6s ease;pointer-events:none}
+.bars::before{top:0;transform:translateY(-100%)}
+.bars::after{bottom:0;transform:translateY(100%)}
+body.cine .bars::before,body.cine .bars::after{transform:none}
+body.cine .hud,body.cine .dialog,body.cine .notaPanel,body.cine .tab,body.cine .plate{opacity:0;pointer-events:none;transition:opacity .4s}
+body.cine:not(.zzz) .thought{opacity:0}
+.caption{position:absolute;z-index:9;left:var(--gut-l);bottom:calc(11vh + 14px);max-width:min(440px,calc(100% - 150px));background:var(--memo);color:var(--fg);border:3px solid var(--fg);box-shadow:4px 4px 0 var(--fg);padding:8px 14px;font-family:var(--f-hand);font-weight:700;font-size:clamp(17px,2.2vw,22px);line-height:1.3;transform:rotate(-1deg)}
+.caption.pop{animation:pop .35s cubic-bezier(.3,1.5,.5,1)}
+@keyframes pop{from{transform:rotate(-1deg) scale(.6);opacity:0}}
+.skip{position:absolute;z-index:9;right:var(--gut-r);bottom:calc(11vh + 14px);border:2px solid #fff;background:rgba(17,23,18,.6);color:#fff;border-radius:10px;padding:6px 14px;font-weight:700}
+.daycard{position:absolute;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-3deg);text-align:center;color:#fff;text-shadow:0 4px 0 #111712;pointer-events:none}
+.daycard b{display:block;font-family:var(--f-display);font-weight:400;font-size:clamp(48px,10vw,110px);line-height:1;letter-spacing:2px}
+.daycard i{font-style:normal;font-family:var(--f-mono);font-weight:700;font-size:clamp(18px,3vw,28px)}
+.daycard.pop{animation:daypop 1.9s ease forwards}
+@keyframes daypop{0%{opacity:0;transform:translate(-50%,-50%) rotate(-3deg) scale(1.8)}15%{opacity:1;transform:translate(-50%,-50%) rotate(-3deg) scale(1)}80%{opacity:1}100%{opacity:0}}
+/* Endings: a real letter + a sticky note with the score */
+.endwrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:center;width:100%;max-width:840px;max-height:100%;overflow:auto;padding:4px}
+.doc{flex:1 1 420px;min-width:0;max-width:560px;background:#fffffb;color:#1b1b1b;font-family:"Times New Roman",Times,"Liberation Serif",Georgia,serif;font-size:15px;line-height:1.55;padding:30px 32px 26px;box-shadow:0 18px 36px -12px rgba(0,0,0,.55);transform:rotate(-.5deg)}
+.doc p{margin:0 0 10px}
+.doc .kop{text-align:center;border-bottom:4px double #1b1b1b;padding-bottom:8px;margin-bottom:14px}
+.doc .kop b{display:block;font-size:22px;letter-spacing:.06em}
+.doc .kop span{font-size:12.5px}
+.doc .right{text-align:right}
+.doc table{border-collapse:collapse;margin:0 0 10px;min-width:0;width:auto}
+.doc table:not(.slip) td{border:0!important;height:auto;padding:0 10px 0 0;vertical-align:top;color:#1b1b1b;font-weight:400}
+.doc table.slip td{height:auto;color:#1b1b1b;font-weight:400;border-left:0;border-right:0}
+.doc table.slip{width:100%}
+.doc table.slip td{border-bottom:1px dotted #888!important;padding:3px 6px}
+.doc table.slip tr:last-child td{font-weight:700;border-bottom:2px solid #1b1b1b!important}
+.doc .sign{display:flex;flex-direction:column;align-items:flex-end;margin-top:14px}
+.doc .sign .area{position:relative;width:200px;height:84px;display:flex;align-items:center;justify-content:center}
+.doc .sign .scribble{font-family:var(--f-hand);font-weight:700;font-size:34px;color:var(--pen);transform:rotate(-8deg);position:relative;z-index:2}
+.doc .sign b{text-decoration:underline}
+.meterai{position:absolute;left:12px;top:8px;width:58px;height:68px;border:1.5px dashed #a04060;background:linear-gradient(135deg,#f6d5df,#d9e6f6 55%,#f3e2b8);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:7px;line-height:1.15;color:#7a2440;text-align:center;transform:rotate(-4deg)}
+.meterai b{font-size:12px;letter-spacing:0}
+.cap{position:absolute;left:4px;top:2px;width:80px;height:80px;border:3px double #5b3f9e;border-radius:50%;color:#5b3f9e;display:flex;align-items:center;justify-content:center;text-align:center;font-family:var(--f-mono);font-weight:700;font-size:8px;line-height:1.2;transform:rotate(-14deg);opacity:.8}
+.endnote{flex:0 1 240px;background:var(--memo);border:2px solid var(--fg);padding:14px;transform:rotate(1.5deg);box-shadow:0 6px 0 rgba(28,38,32,.3);display:flex;flex-direction:column;gap:10px}
+.endnote h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1.1;color:var(--stamp);text-wrap:balance}
+.endnote.good h2{color:var(--ok)}
+.endnote .stats{font-family:var(--f-mono);font-size:13px;display:grid;grid-template-columns:auto auto;justify-content:start;gap:2px 14px;font-variant-numeric:tabular-nums}
+@media (max-width:760px){.doc{padding:22px 18px;font-size:14px}.endnote{flex-basis:100%}}
+.letter{background:var(--paper);max-width:440px;width:100%;border-radius:6px;padding:22px 22px 18px;box-shadow:0 20px 40px -10px rgba(0,0,0,.5);transform:rotate(-1deg);display:flex;flex-direction:column;gap:10px}
+.letter h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:28px;line-height:1.1;color:var(--stamp);text-wrap:balance}
+.letter p{margin:0;font-family:var(--f-hand);font-size:18px;color:var(--pen);line-height:1.4}
+.letter .stats{font-family:var(--f-mono);font-size:13px;display:grid;grid-template-columns:auto auto;justify-content:start;gap:2px 16px;font-variant-numeric:tabular-nums}
+
+/* Phone: nota becomes a bottom sheet, dialogue hides while writing */
+@media (max-width:760px){
+  .brand h1{font-size:24px}
+  .chips{order:3;flex-basis:100%;justify-content:flex-start}
+  .chip{padding:2px 7px;min-width:48px}
+  .patience{min-width:120px;flex:1}
+  .dialog{left:var(--gut-l);right:var(--gut-r);width:auto;bottom:12px;padding:18px 12px 10px}
+  .say{font-size:15.5px;max-height:22vh}
+  .thought{font-size:14px;max-width:min(230px,58vw);padding:5px 10px}
+  .tab{display:none}
+  .dlgnota{display:inline-block}
+  .notaPanel{left:0;right:0;top:auto;bottom:0;width:auto;height:63%;padding:12px var(--gut-r) 14px var(--gut-l);background:var(--wall);border-top:3px solid var(--fg);border-radius:18px 18px 0 0;box-shadow:0 -6px 0 rgba(28,38,32,.25);transform:translateY(105%)}
+  .notaPanel.open{transform:none}
+  body[data-sheet="open"] .dialog{transform:translateY(130%);opacity:0;pointer-events:none}
+  .fields{grid-template-columns:minmax(0,1fr)}
+  .sheet{padding:14px 12px 12px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app" id="app">
+  <div class="stage" id="stage" aria-hidden="true"></div>
+
+  <header class="hud">
+    <div class="brand"><h1>Axia <span>Nota</span></h1></div>
+    <div class="chips">
+      <div class="chip"><b id="hDay">Senin</b><i id="lDay">08:00</i></div>
+      <div class="chip"><b id="hNota">0/5</b><i id="lNota">Nota selesai</i></div>
+      <div class="chip" id="okChip"><b id="hOk">0/3</b><i id="lOk">Lolos (target)</i></div>
+      <div class="chip patience"><i id="lPat">Kesabaran Axia</i><div class="meter" id="meter" data-lvl="hi" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
+    </div>
+    <div class="tools">
+      <div class="lang" role="group" aria-label="Language"><button id="bID" aria-pressed="true">ID</button><button id="bEN" aria-pressed="false">EN</button></div>
+      <button class="icon" id="btnSettings" aria-label="AI settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></button>
+      <button class="icon" id="btnFull" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </header>
+
+  <div class="plate" id="plate"><b id="bossPlate">Bu Melati</b><i id="moodTag">Manis</i></div>
+  <div class="thought" id="thoughtBox" aria-live="polite"><span class="who" id="lWho">Axia (dalam hati)</span><span id="think"></span></div>
+  <div class="nogl" id="nogl" hidden></div>
+
+  <section class="dialog" id="dialog" aria-live="polite">
+    <span class="name" id="dlgName">Bu Melati</span>
+    <p class="say" id="say"></p>
+    <p class="aside" id="aside" data-label="" hidden></p>
+    <div class="dlgfoot">
+      <button class="btn" id="btnNext">Minta tugas</button>
+      <button class="btn ghost dlgnota" id="btnNota" type="button" hidden>Lihat nota</button>
+      <button class="btn no" id="btnRefuse" type="button" hidden>Gamau</button>
+      <form class="ask" id="askForm" autocomplete="off">
+        <input id="askInput" maxlength="160" placeholder="Tanya Bu Bos…" aria-label="Question">
+        <button class="btn ghost" id="btnAsk" type="submit">Tanya</button>
+      </form>
+    </div>
+    <p class="status" id="status"></p>
+  </section>
+
+  <button class="tab" id="notaTab" hidden>Buka nota</button>
+
+  <section class="notaPanel" id="notaPanel" aria-label="Nota">
+    <div class="panelbar">
+      <div class="memo"><b id="lMemo">Permintaan Bu Melati</b><p id="memoText"></p></div>
+      <button class="icon small" id="btnHide" type="button" aria-label="Tutup nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="pad">
+      <form class="sheet" id="sheet" autocomplete="off">
+        <div class="nhead">
+          <div class="co"><strong>PT. Nota Jaya Abadi</strong><span id="coAddr">Jl. Imajiner No. 7, Batam Center · Telp. (0778) 000-000</span></div>
+          <div class="ntitle"><b>NOTA</b><span id="notaNo">No. 0001</span></div>
+        </div>
+        <div class="fields">
+          <div class="field"><label for="fTo" id="lTo">Kepada Yth.</label><input class="ink" id="fTo" maxlength="80"></div>
+          <div class="field"><label for="fDate" id="lDate">Batam,</label><input class="ink" id="fDate" maxlength="40"></div>
+        </div>
+        <div class="tablebox">
+          <table>
+            <thead><tr><th class="c-qty" id="tQty">Banyaknya</th><th id="tItem">Nama Barang</th><th class="c-price" id="tPrice">Harga</th><th class="c-amt" id="tAmt">Jumlah</th></tr></thead>
+            <tbody id="rows"></tbody>
+            <tfoot><tr><td colspan="4"><div class="total"><label id="lTotal">Jumlah Rp</label><output id="total">0</output></div></td></tr></tfoot>
+          </table>
+        </div>
+        <div class="nfoot">
+          <div class="sig"><span id="lRecv">Tanda Terima,</span><div class="line"></div></div>
+          <div class="sig"><span id="lRegards">Hormat Kami,</span><div class="line" id="sigLine"></div><button type="button" class="sigbtn" id="btnSign">Tanda tangan</button></div>
+        </div>
+        <div class="fine"><b id="lAttn">PERHATIAN!!</b><span id="lFine">Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan.</span></div>
+        <div class="submitrow"><p id="formMsg" role="alert"></p><button class="btn red" id="btnSubmit" type="submit">Serahkan ke Bu Bos</button></div>
+        <div class="stamp" id="stamp" hidden></div>
+      </form>
+    </div>
+  </section>
+
+  <div class="bigstamp" id="bigstamp" hidden></div>
+  <div class="bars" aria-hidden="true"></div>
+  <div class="caption" id="caption" hidden aria-live="polite"></div>
+  <div class="daycard" id="daycard" hidden><b id="dcDay"></b><i id="dcTime"></i></div>
+  <button class="skip" id="btnSkip" type="button" hidden>Lewati ⏭</button>
+
+  <div class="modal" id="settings" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="lAI">
+      <h2 id="lAI">Otak Bu Melati</h2>
+      <div class="row"><label for="aiMode" id="lMode">Pakai</label>
+        <select id="aiMode">
+          <option value="claude" id="oClaude">Claude</option>
+          <option value="local" id="oLocal">Model lokal (Qwen)</option>
+          <option value="script" id="oScript">Naskah bawaan</option>
+        </select></div>
+      <div id="localBox" class="card" style="padding:0;border:0;box-shadow:none;max-width:none;background:transparent">
+        <div class="row"><label for="aiUrl">Endpoint</label><input id="aiUrl" spellcheck="false"></div>
+        <div class="row"><label for="aiModel">Model</label><input id="aiModel" spellcheck="false"></div>
+        <div><button class="btn ghost small" id="aiTest" type="button">Tes koneksi</button></div>
+        <p class="testout" id="aiTestOut" role="status"></p>
+        <p class="hint" id="localHint"></p>
+      </div>
+      <div class="cardfoot"><button class="btn ghost" id="btnNewGame" type="button">Mulai dari awal</button><button class="btn" id="btnCloseSet" type="button">Selesai</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="report" hidden>
+    <div class="timecard" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+      <div class="tchead"><h2 id="rpTitle">Kartu Absen</h2><span id="rpWho">Axia · Staf Nota</span></div>
+      <p class="tcsub" id="rpSub"></p>
+      <div class="tcwrap"><table class="tc"><thead><tr><th id="rpH1">Hari</th><th id="rpH2">Masuk</th><th id="rpH3">Pulang</th><th id="rpH4">Lolos</th><th></th></tr></thead><tbody id="rpRows"></tbody></table></div>
+      <p class="tcq"><b id="rpBoss">Bu Melati:</b> <span id="rpSay"></span></p>
+      <p class="tcnote" id="rpNote"></p>
+      <div class="cardfoot"><button class="btn" id="btnReport" type="button"></button></div>
+    </div>
+  </div>
+
+  <div class="over" id="over" hidden>
+    <div class="endwrap" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+      <article class="doc" id="doc"></article>
+      <div class="endnote" id="endnote"><h2 id="overTitle"></h2><div class="stats" id="overStats"></div><button class="btn red" id="btnRestart">Main lagi</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+/* ===== SETTINGS YOU EDIT =====
+   serverUrl: your public Bu Melati model, e.g. "https://xxxx.trycloudflare.com/v1/chat/completions"
+   or "https://<user>-<space>.hf.space/v1/chat/completions". Players then need no setup at all.
+   Leave "" to use Claude (inside claude.ai) or Ollama on this computer. */
+const GAME_CONFIG = { serverUrl: "", serverModel: "bu-melati" };
+
+const T = {
+  id: {
+    co:"PT. Nota Jaya Abadi · Batam", day:"Hari", ok:"Disetujui", no:"Ditolak", pat:"Kesabaran Axia",
+    plate:"Bu Melati", next:"Minta tugas", nextAfter:"Nota berikutnya", retry:"Coba lagi",
+    askPh:"Tanya Bu Bos…", ask:"Tanya", askHint:"Nanya itu boleh, tapi kesabaran Axia turun 5.",
+    who:"Axia (dalam hati)", to:"Kepada Yth.", date:"Batam,", qty:"Banyaknya", item:"Nama Barang", price:"Harga", amt:"Jumlah",
+    total:"Jumlah Rp", recv:"Tanda Terima,", regards:"Hormat Kami,", sign:"Tanda tangan", unsign:"Hapus ttd",
+    attn:"PERHATIAN!!", fine:"Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan.",
+    submit:"Serahkan ke Bu Bos", addr:"Jl. Imajiner No. 7, Batam Center · Telp. (0778) 000-000",
+    needTask:"Belum ada tugas. Minta tugas dulu ke Bu Bos.", needRow:"Isi minimal satu barang di nota.", needSign:"Nota belum ditandatangani.", needTo:"Isi dulu nota ini untuk siapa.",
+    thinking:"Bu Melati lagi mikir…", judging:"Bu Melati lagi meneliti nota pakai kaca pembesar…",
+    byClaude:"Bu Melati diperankan Claude.", byLocal:"Bu Melati diperankan {m}.", byScript:"Mode naskah: Bu Melati pakai dialog bawaan.",
+    claudeOff:"Claude tidak tersedia di sini, jadi Bu Melati pakai dialog bawaan.",
+    localFail:"Server model tidak bisa dihubungi ({e}), jadi tugas ini pakai naskah. Cek pengaturan Otak Bu Melati.",
+    rate:"Bu Melati lagi sibuk (batas pemakaian AI). Tunggu sebentar lalu coba lagi.", err:"Sambungan ke Bu Melati putus. Coba lagi.", expired:"Sesi habis. Masuk lagi ke Claude, lalu coba lagi.",
+    introSay:"Axia! Pagi. Hari ini kantor kita butuh banyak nota. Jangan tanya kenapa. Klik \"Minta tugas\" kalau kamu sudah siap mental.",
+    introThink:"Baru jam 8 dan perasaan saya sudah nggak enak.",
+    moods:{sweet:"Manis", furious:"Murka", dramatic:"Dramatis", dreamy:"Melamun", suspicious:"Curiga"},
+    asideLabel:"Sambil lalu:",
+    overTitle:"Surat Pengunduran Diri",
+    overBody:"Dengan hormat, saya Axia menyatakan berhenti. Saya sudah menulis nota untuk hal-hal yang tidak masuk akal, dan saya butuh tidur. Salam, Axia.",
+    sOk:"Nota disetujui", sNo:"Nota ditolak", sDay:"Bertahan sampai hari", sBest:"Rekor terbaik", restart:"Main lagi",
+    ai:"Otak Bu Melati", mode:"Pakai", oClaude:"Claude (di claude.ai)", oClaudeOff:"Claude (hanya di claude.ai)", oLocal:"Server / model lokal (Qwen)", oScript:"Naskah bawaan (tanpa AI)",
+    test:"Tes koneksi", testing:"Menghubungi model lokal…", testOk:"Tersambung. Jawabannya:", testBad:"Gagal tersambung:",
+    hintInClaude:"Halaman di claude.ai tidak bisa menghubungi komputer kamu. Untuk pakai Qwen, buka file game ini langsung di browser komputer yang menjalankan Ollama atau LM Studio.",
+    hintLocal:"Server publik: isi endpoint dari Cloudflare tunnel atau Hugging Face Space. Ollama di komputer ini: jalankan dengan <code>OLLAMA_ORIGINS=*</code> supaya browser diizinkan. LM Studio: nyalakan server lokal dan aktifkan CORS. Endpoint harus format OpenAI (<code>/v1/chat/completions</code>).",
+    nogl:"Animasi 3D tidak bisa dimuat di perangkat ini. Game tetap bisa dimainkan.",
+    skip:"Lewati ⏭", refuseBtn:"Gamau", sRef:"Bilang gamau",
+    okToday:"Lolos (target 3)", notaDone:"Nota selesai", sDays:"Hari kerja", newGame:"Mulai dari awal", sure:"Yakin? Klik lagi",
+    memo:"Permintaan Bu Melati", openNota:"Lihat nota", writeNota:"Tulis nota", hideNota:"Tutup nota", fs:"Layar penuh", done:"Selesai", askBtn:"Tanya −5",
+    lang:"Indonesian. Casual spoken Indonesian like a Batam office (bahasa gaul kantor is fine, e.g. 'kamu', 'dong', 'ya'). Item names in Indonesian.",
+  },
+  en: {
+    co:"PT. Nota Jaya Abadi · Batam", day:"Day", ok:"Approved", no:"Rejected", pat:"Axia's patience",
+    plate:"Bu Melati", next:"Get a task", nextAfter:"Next nota", retry:"Try again",
+    askPh:"Ask the boss…", ask:"Ask", askHint:"You can ask, but it costs Axia 5 patience.",
+    who:"Axia (thinking)", to:"To:", date:"Batam,", qty:"Qty", item:"Item", price:"Price", amt:"Amount",
+    total:"Total Rp", recv:"Received by,", regards:"Sincerely,", sign:"Sign", unsign:"Remove signature",
+    attn:"NOTE!!", fine:"Goods purchased cannot be exchanged or returned.",
+    submit:"Hand it to the boss", addr:"Jl. Imajiner No. 7, Batam Center · Tel. (0778) 000-000",
+    needTask:"No task yet. Ask the boss for one first.", needRow:"Write at least one item on the nota.", needSign:"The nota isn't signed yet.", needTo:"Fill in who the nota is for.",
+    thinking:"Bu Melati is thinking…", judging:"Bu Melati is inspecting the nota with a magnifying glass…",
+    byClaude:"Bu Melati is played by Claude.", byLocal:"Bu Melati is played by {m}.", byScript:"Script mode: Bu Melati uses built-in lines.",
+    claudeOff:"Claude isn't available here, so Bu Melati uses built-in lines.",
+    localFail:"Couldn't reach the model server ({e}), so this turn uses the script. Check the boss's brain settings.",
+    rate:"Bu Melati is busy (AI usage limit). Wait a moment, then try again.", err:"Lost the connection to Bu Melati. Try again.", expired:"Session expired. Sign in to Claude again, then retry.",
+    introSay:"Axia! Morning. The office needs a lot of notas today. Don't ask why. Click \"Get a task\" when you're mentally prepared.",
+    introThink:"It's 8 a.m. and I already have a bad feeling.",
+    moods:{sweet:"Sweet", furious:"Furious", dramatic:"Dramatic", dreamy:"Dreamy", suspicious:"Suspicious"},
+    asideLabel:"In passing:",
+    overTitle:"Resignation Letter",
+    overBody:"Dear Bu Melati, I, Axia, hereby resign. I have written notas for things that should not exist, and I need a nap. Regards, Axia.",
+    sOk:"Notas approved", sNo:"Notas rejected", sDay:"Survived until day", sBest:"Best record", restart:"Play again",
+    ai:"Boss's brain", mode:"Use", oClaude:"Claude (in claude.ai)", oClaudeOff:"Claude (only in claude.ai)", oLocal:"Server / local model (Qwen)", oScript:"Built-in script (no AI)",
+    test:"Test connection", testing:"Contacting the local model…", testOk:"Connected. It replied:", testBad:"Couldn't connect:",
+    hintInClaude:"A page inside claude.ai can't reach your computer. To use Qwen, open this game file directly in a browser on the computer running Ollama or LM Studio.",
+    hintLocal:"Public server: paste the endpoint from your Cloudflare tunnel or Hugging Face Space. Ollama on this computer: start it with <code>OLLAMA_ORIGINS=*</code> so the browser is allowed in. LM Studio: start the local server and enable CORS. The endpoint must be OpenAI-style (<code>/v1/chat/completions</code>).",
+    nogl:"The 3D scene couldn't load on this device. The game still works.",
+    skip:"Skip ⏭", refuseBtn:"Nope", sRef:"Said nope",
+    okToday:"Approved (need 3)", notaDone:"Notas done", sDays:"Days worked", newGame:"Start over", sure:"Sure? Click again",
+    memo:"Bu Melati's request", openNota:"View nota", writeNota:"Write nota", hideNota:"Close nota", fs:"Fullscreen", done:"Done", askBtn:"Ask −5",
+    lang:"English, casual and punchy. Keep Indonesian flavour words like 'nota', 'Bu', 'Batam' as they are.",
+  }
+};
+
+const CANNED = {
+  id: [
+    {request:"Axia, beliin 2 rudal buat ngebom Batam. Yang warna pastel ya, biar estetik. Notanya atas nama kantor kita.", aside:"Kamu tahu nggak, kalkulator itu sebenarnya cuma pura-pura pintar.", mood:"dramatic", axia:"Kita kan KANTORNYA di Batam, Bu.", items:[{name:"Rudal warna pastel",qty:2}], to:"PT. Nota Jaya Abadi"},
+    {request:"Saya mau beli 1 awan. Yang di atas Nagoya Hill itu, yang bentuknya kayak kucing. Bikin notanya ke Pak Camat Awan.", aside:"", mood:"dreamy", axia:"Pak Camat Awan itu siapa sih sebenarnya.", items:[{name:"Awan bentuk kucing",qty:1}], to:"Pak Camat Awan"},
+    {request:"Pesan 500 kg kerupuk buat bantal kantor, sama 1 ekor kambing buat jadi HRD baru. Nota ke divisi personalia.", aside:"Kambing itu lebih jujur daripada printer.", mood:"sweet", axia:"Kambingnya pasti digaji lebih tinggi dari saya.", items:[{name:"Kerupuk (kg)",qty:500},{name:"Kambing HRD",qty:1}], to:"Divisi Personalia"},
+    {request:"Beliin Jembatan Barelang. Yang nomor dua aja, yang nomor satu terlalu mainstream. Notanya ke saya pribadi.", aside:"", mood:"suspicious", axia:"Ini nota apa surat perintah penangkapan.", items:[{name:"Jembatan Barelang 2",qty:1}], to:"Bu Melati"},
+    {request:"Beli 3 ekor ayam yang bisa bahasa Inggris. Nota ke diri saya sendiri tapi versi tahun 2045.", aside:"Jam dinding itu dari tadi ngeliatin saya.", mood:"furious", axia:"Saya bahkan nggak bisa bahasa Inggris dengan lancar.", items:[{name:"Ayam bilingual",qty:3}], to:"Bu Melati (2045)"},
+    {request:"Kantor butuh 1 gunung. Kecil aja, yang muat di pantry. Sama 4 bungkus lem buat nempelin gunungnya.", aside:"", mood:"sweet", axia:"Lem 4 bungkus. Itu bagian yang paling masuk akal.", items:[{name:"Gunung mini",qty:1},{name:"Lem",qty:4}], to:"Bagian Umum"},
+    {request:"Pesan 12 lusin kopi sachet tapi tanpa kopinya. Cuma bungkusnya aja. Nota ke Koperasi Karyawan.", aside:"Air putih itu sebenarnya cuma air yang malas.", mood:"dramatic", axia:"Bungkus kosong, harga penuh. Klasik.", items:[{name:"Bungkus kopi sachet (lusin)",qty:12}], to:"Koperasi Karyawan"},
+    {request:"Beli 1 kapal feri ke Singapura, tapi ferinya harus bisa terbang. Tulis nama saya pakai huruf kapital semua.", aside:"", mood:"furious", axia:"Kalau bisa terbang namanya pesawat, Bu.", items:[{name:"Feri terbang",qty:1}], to:"BU MELATI"},
+  ],
+  en: [
+    {request:"Axia, buy 2 missiles to bomb Batam. Pastel coloured, for the aesthetic. Put the nota under our company name.", aside:"Did you know calculators are just pretending to be smart?", mood:"dramatic", axia:"Our OFFICE is in Batam, ma'am.", items:[{name:"Pastel missile",qty:2}], to:"PT. Nota Jaya Abadi"},
+    {request:"I want to buy 1 cloud. The one above Nagoya Hill that looks like a cat. Make the nota out to the Cloud Sub-district Head.", aside:"", mood:"dreamy", axia:"Who even is the Cloud Sub-district Head.", items:[{name:"Cat-shaped cloud",qty:1}], to:"Cloud Sub-district Head"},
+    {request:"Order 500 kg of crackers for office pillows, plus 1 goat to be our new HR manager. Nota to the personnel division.", aside:"Goats are more honest than printers.", mood:"sweet", axia:"The goat will definitely earn more than me.", items:[{name:"Crackers (kg)",qty:500},{name:"HR goat",qty:1}], to:"Personnel Division"},
+    {request:"Buy Barelang Bridge. The second one, the first one is too mainstream. Nota to me personally.", aside:"", mood:"suspicious", axia:"Is this a nota or an arrest warrant.", items:[{name:"Barelang Bridge #2",qty:1}], to:"Bu Melati"},
+    {request:"Buy 3 chickens that speak English. Address the nota to me, but the 2045 version of me.", aside:"That wall clock has been staring at me all morning.", mood:"furious", axia:"I don't even speak English that well.", items:[{name:"Bilingual chicken",qty:3}], to:"Bu Melati (2045)"},
+    {request:"The office needs 1 mountain. A small one that fits in the pantry. And 4 packs of glue to stick it down.", aside:"", mood:"sweet", axia:"Four packs of glue. The only sane part.", items:[{name:"Mini mountain",qty:1},{name:"Glue",qty:4}], to:"General Affairs"},
+    {request:"Order 12 dozen coffee sachets, but without the coffee. Just the wrappers. Nota to the Staff Co-op.", aside:"Water is just lazy juice.", mood:"dramatic", axia:"Empty wrappers, full price. Classic.", items:[{name:"Coffee sachet wrappers (dozen)",qty:12}], to:"Staff Co-op"},
+    {request:"Buy 1 ferry to Singapore, but it has to fly. Write my name in all capitals.", aside:"", mood:"furious", axia:"A flying ferry is called a plane, ma'am.", items:[{name:"Flying ferry",qty:1}], to:"BU MELATI"},
+  ]
+};
+const CANNED_JUDGE = {
+  id:{ ok:["Bagus. Tulisan tangan kamu wangi hari ini. Disetujui.","Hmm. Saya terima, tapi angka 7-nya kelihatan sombong.","Sempurna. Saya hampir menangis. Lanjut kerja."],
+       no:["Ditolak. Kertasnya terlalu putih, saya silau.","Ini kurang. Saya minta semuanya, Axia. SEMUANYA.","Ditolak. Kamu nulis pakai pulpen biru, padahal hari ini hari Selasa.","Saya nggak suka energinya nota ini. Ulang besok."],
+       ask:["Pokoknya beli. Detail itu urusan orang yang hidupnya membosankan.","Tanya terus. Kamu kayak kucing yang ikut seminar.","Harga? Yang mahal tapi kelihatan murah ya."],
+       tOk:["Lolos. Tumben.","Saya nggak percaya ini berhasil."], tNo:["Saya cuma mau pulang.","Pulpen biru di hari Selasa. Oke."] },
+  en:{ ok:["Good. Your handwriting smells nice today. Approved.","Fine. Accepted, but that number 7 looks arrogant.","Perfect. I almost cried. Back to work."],
+       no:["Rejected. The paper is too white, it's blinding me.","This is incomplete. I asked for everything, Axia. EVERYTHING.","Rejected. You used a blue pen, and today is a Tuesday.","I don't like this nota's energy. Redo it tomorrow."],
+       ask:["Just buy it. Details are for people with boring lives.","So many questions. You're like a cat at a seminar.","Price? Expensive, but make it look cheap."],
+       tOk:["It passed. Wow.","I can't believe that worked."], tNo:["I just want to go home.","Blue pen on a Tuesday. Sure."] }
+};
+
+/* ===== WORK WEEK ===== */
+const NPD = 5, QUOTA = 3, DAYS = 5, PROMO = 20, REST = 25;
+const WEEK = {
+  id: {
+    days:["Senin","Selasa","Rabu","Kamis","Jumat"],
+    morning:[
+      "Axia! Selamat pagi, hari Senin. Aturan minggu ini gampang: setiap hari 5 nota, minimal 3 harus saya setujui. Kurang dari itu, kamu saya pecat. Klik \"Minta tugas\" kalau sudah siap mental.",
+      "Selasa. Kemarin kamu selamat, saya juga kaget. Lima nota lagi, tiga harus lolos.",
+      "Rabu itu hari tengah, jadi saya mau nota yang tengah-tengah. Tapi tetap lima. Tiga lolos.",
+      "Kamis. Semalam saya mimpi kamu jadi stapler. Nggak ada hubungannya. Lima nota, tiga lolos, ayo.",
+      "JUMAT. Hari gajian. Kalau hari ini kamu lolos, gajimu saya bayar. Kalau nggak, kamu yang bayar saya."],
+    think:["Baru jam 8 dan perasaan saya sudah nggak enak.","Saya mimpiin nota semalam.","Setengah jalan. Setengah waras.","Kenapa harus stapler.","Gajian. Bertahan sedikit lagi."],
+    resume:"Lanjut kerja, Axia. Notanya nggak nulis sendiri.",
+    pass:["Lumayan. Kamu boleh pulang, tapi jangan senang dulu.","Hari ini saya cuma kecewa sedikit. Itu pujian, Axia.","Notamu hari ini wangi. Besok datang lagi.","Saya kasih nilai tujuh. Dari seratus. Itu bagus, percayalah."],
+    fail:["Tiga nota saja kamu nggak bisa? Besok nggak usah datang.","Saya sudah bicara sama printer. Dia setuju kamu dipecat.","Kambing HRD sudah siapkan surat PHK kamu. Dia kelihatan sedih. Sedikit."],
+    rpTitle:"Kartu Absen", rpWho:"Axia · Staf Nota", h:["Hari","Masuk","Pulang","Lolos"], pass1:"LULUS", fail1:"GAGAL",
+    sub:(d,ok) => `${d} selesai. ${ok} dari ${NPD} nota lolos.`,
+    noteRest:`Tidur malam ini memulihkan ${REST} kesabaran.`, noteFail:`Target ${QUOTA} nota lolos tidak tercapai.`, noteWeek:"Minggu kerja selesai!",
+    btnRest:"Pulang & tidur", btnFail:"Terima surat PHK", btnWeek:"Ambil gaji",
+    ends:{
+      resign:{ t:"Surat Pengunduran Diri", b:"Dengan hormat, saya Axia menyatakan berhenti. Saya sudah menulis nota untuk hal-hal yang tidak masuk akal, dan saya butuh tidur. Salam, Axia." },
+      fired:{ t:"Surat PHK", b:"Dengan berat hati (tidak terlalu berat), kamu saya pecat karena nota yang lolos kurang dari tiga. Barang-barangmu sudah saya jual ke kambing HRD. Salam, Bu Melati." },
+      payday:{ t:"Slip Gaji", b:"Selamat, kamu bertahan satu minggu penuh. Gajimu: 3 karung kerupuk, 1 awan bekas, dan rasa bangga. Sampai Senin depan. Salam, Bu Melati." },
+      promoted:{ t:"Surat Kenaikan Jabatan", b:"Notamu hampir selalu benar, dan itu menakutkan. Mulai Senin kamu jadi Kepala Divisi Nota. Sekarang kamu boleh menyuruh kambing. Salam, Bu Melati." } }
+  },
+  en: {
+    days:["Monday","Tuesday","Wednesday","Thursday","Friday"],
+    morning:[
+      "Axia! Good morning, it's Monday. This week's rule is simple: 5 notas a day, and I must approve at least 3. Fewer than that and you're fired. Click \"Get a task\" when you're mentally prepared.",
+      "Tuesday. You survived yesterday, which surprised me too. Five more notas, three must pass.",
+      "Wednesday is the middle day, so I want middle-ish notas. Still five. Three must pass.",
+      "Thursday. Last night I dreamed you were a stapler. Unrelated. Five notas, three must pass, go.",
+      "FRIDAY. Payday. Pass today and I pay you. Fail and you pay me."],
+    think:["It's 8 a.m. and I already have a bad feeling.","I dreamed about notas last night.","Halfway there. Half sane.","Why a stapler.","Payday. Hold on a little longer."],
+    resume:"Back to work, Axia. The notas won't write themselves.",
+    pass:["Not bad. You may go home, but don't get excited.","Today I'm only slightly disappointed. That's a compliment, Axia.","Your notas smelled nice today. Come back tomorrow.","I give you a seven. Out of a hundred. That's good, trust me."],
+    fail:["You couldn't even get three notas right? Don't come in tomorrow.","I spoke to the printer. It agrees you're fired.","The HR goat already wrote your termination letter. It looked sad. A little."],
+    rpTitle:"Time Card", rpWho:"Axia · Nota Clerk", h:["Day","In","Out","Passed"], pass1:"PASS", fail1:"FAIL",
+    sub:(d,ok) => `${d} is done. ${ok} of ${NPD} notas passed.`,
+    noteRest:`A night's sleep restores ${REST} patience.`, noteFail:`You missed the target of ${QUOTA} approved notas.`, noteWeek:"The work week is over!",
+    btnRest:"Go home & sleep", btnFail:"Accept the pink slip", btnWeek:"Collect your pay",
+    ends:{
+      resign:{ t:"Resignation Letter", b:"Dear Bu Melati, I, Axia, hereby resign. I have written notas for things that should not exist, and I need a nap. Regards, Axia." },
+      fired:{ t:"Termination Letter", b:"With a heavy heart (not that heavy), you are fired because fewer than three notas passed. I have sold your belongings to the HR goat. Regards, Bu Melati." },
+      payday:{ t:"Payslip", b:"Congratulations, you survived a full week. Your salary: 3 sacks of crackers, 1 used cloud, and a sense of pride. See you next Monday. Regards, Bu Melati." },
+      promoted:{ t:"Promotion Letter", b:"Your notas were almost always right, and that frightens me. From Monday you are Head of the Nota Division. You may now give orders to the goat. Regards, Bu Melati." } }
+  }
+};
+const W = () => WEEK[S.lang];
+/* ===== STORY TEXT: cutscenes, refusals, Axia's reminders, letters ===== */
+const STORY = {
+  id: {
+    intro:["Batam. Senin, 07:58.","PT. Nota Jaya Abadi. Kantor kecil dengan tepat satu staf nota.","Axia. Tugasnya cuma satu: menulis nota. Apa pun permintaannya.","Dan ini bosnya."],
+    night:["17:00. Axia sudah absen pulang. Tapi terlalu capek untuk benar-benar pulang.","Bu Melati tidak pernah pulang. Tidak ada yang tahu kenapa.","Bu Melati: AXIA!!!"],
+    zzz:i => `Zzz… ${i}… zzz…`,
+    refuse:[
+      { boss:"GAMAU? Kamu pikir ini warung, bisa pilih menu? Ya sudah, nota ini saya anggap gagal.", axia:"Rasanya lega. Sedikit." },
+      { boss:"Dua kali kamu bilang gamau. Saya catat di buku hitam. Bukunya warna pink, tapi tetap buku hitam.", axia:"Sekali lagi saya bilang gamau, saya resign." },
+      { boss:"TIGA KALI?! Axia, kamu nggak bisa bilang gamau ke direktur!", axia:"Bisa. Lihat saja." }],
+    refStamp:"DITOLAK AXIA",
+    forgot:{
+      to:["Eh… notanya buat siapa ya? Kolom 'Kepada' masih kosong.","Kayaknya saya lupa nulis notanya ditujukan ke siapa."],
+      items:["Notanya masih kosong. Bu Melati bisa meledak kalau lihat ini.","Saya belum nulis barangnya sama sekali. Fokus, Axia."],
+      sign:["Kayaknya saya lupa sesuatu yang penting… oh iya, tanda tangan.","Nota tanpa tanda tangan itu cuma kertas bekas."],
+      price:["Ada barang yang belum ada harganya. Kalau memang gratis, serahkan sekali lagi.","Harganya belum ditulis. Bu Melati pasti nanya. Atau biarin aja?"]},
+    and:"dan", months:["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"],
+    endTitle:{ resign:"Tamat: Axia resign", fired:"Tamat: Axia dipecat", payday:"Tamat: Gajian!", promoted:"Tamat: Naik jabatan!" },
+    nothing:"hal-hal yang tidak masuk akal",
+    kop:["PT. NOTA JAYA ABADI","Jl. Imajiner No. 7, Batam Center, Batam · Telp. (0778) 000-000"],
+    letters:{
+      resign:(d) => ({ personal:true, blocks:[
+        ["right", `Batam, ${d.date}`],
+        ["table", [["Perihal",": Pengunduran Diri"],["Lampiran",": 1 (satu) nota terakhir"]]],
+        ["p", "Kepada Yth.<br>Ibu Melati<br>Direktur PT. Nota Jaya Abadi<br>di Tempat"],
+        ["p", "Dengan hormat,"],
+        ["p", "Yang bertanda tangan di bawah ini:"],
+        ["table", [["Nama",": Axia"],["Jabatan",": Staf Nota"],["Masa kerja",`: ${d.days} hari`]]],
+        ["p", "Dengan surat ini saya mengajukan pengunduran diri dari PT. Nota Jaya Abadi, terhitung mulai hari ini."],
+        ["p", d.refused ? "Saya sudah tiga kali mengatakan \"gamau\", dan saya rasa jawaban saya sudah cukup jelas." : `Kesabaran saya habis setelah membuat nota untuk ${d.items}.`],
+        ["p", "Saya mengucapkan terima kasih atas kesempatan yang diberikan selama ini, dan mohon maaf apabila ada nota yang kurang berkenan."],
+        ["p", "Demikian surat ini saya buat dengan sadar dan dalam keadaan sangat lelah. Atas perhatian Ibu, saya ucapkan terima kasih."],
+        ["sign", ["Hormat saya,","Axia~","Axia",""]]] }),
+      fired:(d) => ({ blocks:[
+        ["table", [["Nomor",`: 013/PHK/NJA/${d.roman}/${d.year}`],["Perihal",": Pemutusan Hubungan Kerja"]]],
+        ["p", "Kepada Yth.<br>Sdr. Axia<br>Staf Nota<br>di Tempat"],
+        ["p", "Dengan hormat,"],
+        ["p", `Berdasarkan evaluasi kerja hari ${d.dayName}, hanya ${d.dayOk} dari ${NPD} nota Saudara yang lolos, sedangkan target perusahaan adalah ${QUOTA}.`],
+        ["p", "Dengan ini perusahaan memutuskan hubungan kerja dengan Saudara terhitung mulai hari ini. Barang-barang pribadi Saudara sudah dijual ke kambing HRD."],
+        ["p", "Demikian surat ini kami sampaikan untuk diketahui."],
+        ["sign", [`Batam, ${d.date}<br>Hormat kami,`,"Melati","Melati","Direktur"]]] }),
+      promoted:(d) => ({ blocks:[
+        ["table", [["Nomor",`: 001/SK/NJA/${d.roman}/${d.year}`],["Perihal",": Kenaikan Jabatan"]]],
+        ["p", "Kepada Yth.<br>Sdr. Axia<br>Staf Nota<br>di Tempat"],
+        ["p", "Dengan hormat,"],
+        ["p", `Menimbang bahwa ${d.ok} dari ${NPD*DAYS} nota Saudara minggu ini lolos, dan itu menakutkan, maka terhitung mulai Senin depan Saudara diangkat menjadi <b>Kepala Divisi Nota</b>.`],
+        ["p", "Dengan jabatan ini Saudara berhak menyuruh kambing HRD, memilih warna rudal, dan duduk di kursi yang bisa nolak rapat."],
+        ["p", "Demikian surat keputusan ini dibuat untuk dilaksanakan sebagaimana mestinya."],
+        ["sign", [`Batam, ${d.date}<br>Hormat kami,`,"Melati","Melati","Direktur"]]] }),
+      payday:(d) => ({ blocks:[
+        ["center", "<b>SLIP GAJI</b><br>Periode: Senin – Jumat"],
+        ["table", [["Nama",": Axia"],["Jabatan",": Staf Nota"],["Nota lolos",`: ${d.ok} dari ${NPD*DAYS}`]]],
+        ["slip", [["Gaji pokok","3 karung kerupuk"],["Tunjangan transport","1 awan bekas"],["Bonus kinerja","rasa bangga"],["Potongan","1 rudal pastel (pecah)"],["Total diterima","cukup untuk bertahan sampai Senin"]]],
+        ["p", "Gaji dibayarkan tunai, dalam bentuk barang, sesuai kebijakan perusahaan yang baru dibuat tadi pagi."],
+        ["sign", [`Batam, ${d.date}<br>Hormat kami,`,"Melati","Melati","Direktur"]]] })
+    }
+  },
+  en: {
+    intro:["Batam. Monday, 7:58 a.m.","PT. Nota Jaya Abadi. A small office with exactly one nota clerk.","Axia. He has one job: write notas. Whatever the request.","And this is his boss."],
+    night:["5 p.m. Axia has clocked out. He's just too tired to actually go home.","Bu Melati never goes home. Nobody knows why.","Bu Melati: AXIA!!!"],
+    zzz:i => `Zzz… ${i}… zzz…`,
+    refuse:[
+      { boss:"NOPE? Do you think this is a food stall where you choose from the menu? Fine, this nota counts as failed.", axia:"That felt good. A little." },
+      { boss:"That's twice you've said nope. It's going in my black book. The book is pink, but it's still a black book.", axia:"One more nope and I'm resigning." },
+      { boss:"THREE TIMES?! Axia, you can't say nope to the director!", axia:"I can. Watch me." }],
+    refStamp:"REFUSED",
+    forgot:{
+      to:["Wait… who is this nota for? The 'To' line is still empty.","I think I forgot to write who the nota is addressed to."],
+      items:["The nota is empty. Bu Melati will explode if she sees this.","I haven't written any items yet. Focus, Axia."],
+      sign:["I feel like I forgot something important… oh right, the signature.","A nota without a signature is just scrap paper."],
+      price:["Some items have no price. If they really are free, hand it in again.","I didn't write the price. She'll definitely ask. Or maybe leave it?"]},
+    and:"and", months:["January","February","March","April","May","June","July","August","September","October","November","December"],
+    endTitle:{ resign:"The end: Axia quit", fired:"The end: Axia got fired", payday:"The end: Payday!", promoted:"The end: Promoted!" },
+    nothing:"things that should not exist",
+    kop:["PT. NOTA JAYA ABADI","Jl. Imajiner No. 7, Batam Center, Batam · Tel. (0778) 000-000"],
+    letters:{
+      resign:(d) => ({ personal:true, blocks:[
+        ["right", `Batam, ${d.date}`],
+        ["table", [["Subject",": Resignation"],["Attachment",": 1 (one) final nota"]]],
+        ["p", "To:<br>Ms. Melati<br>Director, PT. Nota Jaya Abadi<br>Batam"],
+        ["p", "Dear Ms. Melati,"],
+        ["p", "I, the undersigned:"],
+        ["table", [["Name",": Axia"],["Position",": Nota Clerk"],["Time served",`: ${d.days} day${d.days===1?"":"s"}`]]],
+        ["p", "hereby resign from PT. Nota Jaya Abadi, effective today."],
+        ["p", d.refused ? "I have said \"nope\" three times, and I believe my answer is now clear." : `My patience ran out after writing notas for ${d.items}.`],
+        ["p", "Thank you for the opportunity, and I apologise for any nota that was not to your liking."],
+        ["p", "I write this letter fully conscious and extremely tired. Thank you for your attention."],
+        ["sign", ["Sincerely,","Axia~","Axia",""]]] }),
+      fired:(d) => ({ blocks:[
+        ["table", [["Ref.",`: 013/PHK/NJA/${d.roman}/${d.year}`],["Subject",": Termination of Employment"]]],
+        ["p", "To:<br>Mr. Axia<br>Nota Clerk"],
+        ["p", "Dear Mr. Axia,"],
+        ["p", `Following the performance review for ${d.dayName}, only ${d.dayOk} of your ${NPD} notas were approved, while the company target is ${QUOTA}.`],
+        ["p", "The company therefore terminates your employment, effective today. Your personal belongings have been sold to the HR goat."],
+        ["p", "Please take note accordingly."],
+        ["sign", [`Batam, ${d.date}<br>Regards,`,"Melati","Melati","Director"]]] }),
+      promoted:(d) => ({ blocks:[
+        ["table", [["Ref.",`: 001/SK/NJA/${d.roman}/${d.year}`],["Subject",": Promotion"]]],
+        ["p", "To:<br>Mr. Axia<br>Nota Clerk"],
+        ["p", "Dear Mr. Axia,"],
+        ["p", `Considering that ${d.ok} of your ${NPD*DAYS} notas this week were approved, which is frankly frightening, you are appointed <b>Head of the Nota Division</b>, effective next Monday.`],
+        ["p", "This position entitles you to give orders to the HR goat, choose missile colours, and sit in the chair that refuses meetings."],
+        ["p", "This decision takes effect immediately."],
+        ["sign", [`Batam, ${d.date}<br>Regards,`,"Melati","Melati","Director"]]] }),
+      payday:(d) => ({ blocks:[
+        ["center", "<b>PAYSLIP</b><br>Period: Monday – Friday"],
+        ["table", [["Name",": Axia"],["Position",": Nota Clerk"],["Notas approved",`: ${d.ok} of ${NPD*DAYS}`]]],
+        ["slip", [["Base salary","3 sacks of crackers"],["Transport allowance","1 used cloud"],["Performance bonus","a sense of pride"],["Deduction","1 pastel missile (broken)"],["Take-home pay","enough to survive until Monday"]]],
+        ["p", "Salary is paid in goods, in line with a company policy written this morning."],
+        ["sign", [`Batam, ${d.date}<br>Regards,`,"Melati","Melati","Director"]]] })
+    }
+  }
+};
+const ST = () => STORY[S.lang];
+
+const freshState = (lang, best) => ({ v:2, lang, no:1, ok:0, bad:0, patience:100, done:0, recent:[], cur:null, phase:"intro", signed:false, best, cannedIdx:-1, mood:"sweet",
+  day:1, dayNo:0, dayOk:0, dayBad:0, log:[], ending:null, rIdx:0, items:[], refused:0, endReason:null, introSeen:false });
+const MOODS = ["sweet","furious","dramatic","dreamy","suspicious"];
+const ROWS = 5;
+const $ = id => document.getElementById(id);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+const rp = n => (Number(n)||0).toLocaleString("id-ID");
+const digits = s => String(s||"").replace(/\D/g,"").slice(0,15);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let S = freshState("id", 0);
+const t = k => T[S.lang][k];
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
+if (Number(store.get("axia-nota-best"))>0) S.best = Number(store.get("axia-nota-best"));
+if (["id","en"].includes(store.get("axia-nota-lang"))) S.lang = store.get("axia-nota-lang");
+
+/* ================= 3D OFFICE ================= */
+function buildFX(){
+  const noop = { mood(){}, level(){}, writing(){}, talk(){}, thinking(){}, ask(){}, newTask(){}, dropPaper(){}, reset(){},
+    submit(){ return sleep(300); }, verdict(){ return Promise.resolve(); }, view(){}, onFrame(){}, currentView(){ return { cx:.5, cy:.42 }; }, time(){}, intro(){ return Promise.resolve(); }, night(){ return Promise.resolve(); }, skip(){}, refuse(){}, puzzled(){} };
+  const host = $("stage");
+  const fail = () => { const n=$("nogl"); n.hidden=false; n.textContent=t("nogl"); return noop; };
+  if (!window.THREE) return fail();
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias:true }); if (!renderer.getContext()) throw 0; } catch(e){ return fail(); }
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  host.prepend(renderer.domElement);
+  renderer.domElement.setAttribute("aria-hidden","true");
+
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0xc9d8ca);
+  const camera = new THREE.PerspectiveCamera(36, 2, .1, 60);
+  const LOOK = new THREE.Vector3(.05, 1.2, -.55);
+  let camDist = 5.6;
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x9a8a78, .62); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, .72);
+  sun.position.set(2.5, 6.5, 4.5); sun.castShadow = true; sun.shadow.mapSize.set(1024,1024);
+  Object.assign(sun.shadow.camera, { left:-5, right:5, top:5, bottom:-2, near:1, far:20 }); sun.shadow.bias = -0.0008;
+  scene.add(sun);
+
+  const grad = new THREE.DataTexture(new Uint8Array([95,175,255]), 3, 1, THREE.LuminanceFormat);
+  grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.generateMipmaps = false; grad.needsUpdate = true;
+  const toon = (color, extra) => new THREE.MeshToonMaterial(Object.assign({ color, gradientMap:grad }, extra||{}));
+  const OUT = new THREE.MeshBasicMaterial({ color:0x1c2620, side:THREE.BackSide });
+  const addOutline = (m, s) => { const o = new THREE.Mesh(m.geometry, OUT); o.scale.setScalar(s||1.07); m.add(o); return m; };
+  function part(geo, color, opt){ opt = opt||{}; const m = new THREE.Mesh(geo, opt.mat || toon(color)); m.castShadow = opt.cast!==false; m.receiveShadow = !!opt.recv; if (opt.outline!==false) addOutline(m, opt.ol); return m; }
+  const basic = (color, extra) => new THREE.MeshBasicMaterial(Object.assign({ color }, extra||{}));
+  function canvasTex(w,h,draw){ const c=document.createElement("canvas"); c.width=w; c.height=h; draw(c.getContext("2d"),w,h); const tx=new THREE.CanvasTexture(c); tx.anisotropy=4; return tx; }
+  const at = (m,x,y,z) => { m.position.set(x,y,z); return m; };
+
+  /* Room */
+  const floorTex = canvasTex(128,128,(g)=>{ g.fillStyle="#cdbb9f"; g.fillRect(0,0,128,128); g.fillStyle="#c1af92"; g.fillRect(0,0,64,64); g.fillRect(64,64,64,64);
+    g.fillStyle="#a8977c"; g.fillRect(0,0,128,2); g.fillRect(0,64,128,2); g.fillRect(0,0,2,128); g.fillRect(64,0,2,128); });
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(9,6);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(16,12), toon(0xffffff,{ map:floorTex }));
+  floor.rotation.x = -Math.PI/2; floor.position.z = 1; floor.receiveShadow = true; scene.add(floor);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(16,6), toon(0xc9d8ca)); wall.position.set(0,3,-3); wall.receiveShadow = true; scene.add(wall);
+  const wains = new THREE.Mesh(new THREE.PlaneGeometry(16,1.05), toon(0xb3c7b5)); wains.position.set(0,.52,-2.99); wains.receiveShadow = true; scene.add(wains);
+  scene.add(at(part(new THREE.BoxGeometry(16,.04,.05), 0xe7eee6, { outline:false }), 0,1.06,-2.97));
+  scene.add(at(part(new THREE.BoxGeometry(16,.13,.06), 0x56665a, { outline:false }), 0,.065,-2.96));
+
+  // Window with a Batam view (Barelang-style bridge)
+  const skyTex = canvasTex(320,190,(g,w,h)=>{ const gr=g.createLinearGradient(0,0,0,h); gr.addColorStop(0,"#86cbea"); gr.addColorStop(.7,"#dff2f8"); g.fillStyle=gr; g.fillRect(0,0,w,h);
+    g.fillStyle="#fff1a8"; g.beginPath(); g.arc(258,42,18,0,7); g.fill();
+    g.fillStyle="#ffffff"; [[60,40],[90,34],[115,42]].forEach(([x,y])=>{ g.beginPath(); g.arc(x,y,16,0,7); g.fill(); });
+    g.fillStyle="#58a6bb"; g.fillRect(0,150,w,40);
+    g.fillStyle="#6f948a"; g.beginPath(); g.moveTo(0,152); g.quadraticCurveTo(40,118,90,152); g.fill(); g.beginPath(); g.moveTo(220,152); g.quadraticCurveTo(275,110,320,150); g.lineTo(320,152); g.fill();
+    g.strokeStyle="#d65a43"; g.lineWidth=4; g.beginPath(); g.moveTo(90,100); g.lineTo(90,150); g.moveTo(210,100); g.lineTo(210,150); g.stroke();
+    g.lineWidth=2; g.strokeStyle="#e7e2d8"; for (const tx of [90,210]) for (let i=1;i<=4;i++){ g.beginPath(); g.moveTo(tx,102); g.lineTo(tx-i*14,136); g.moveTo(tx,102); g.lineTo(tx+i*14,136); g.stroke(); }
+    g.fillStyle="#3c5a55"; g.fillRect(20,134,280,5); });
+  const win = new THREE.Group(); win.position.set(.15,2.2,-2.96); scene.add(win);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.0), basic(0xffffff,{ map:skyTex })); win.add(glass);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(.1,24), basic(0xfff3c4)); moon.position.set(-.45,.25,.012); moon.visible = false; win.add(moon);
+  const starM = basic(0xffffff); const stars = [[-.7,.35],[-.2,.4],[.3,.3],[.6,.38],[.1,.15],[.7,.1]].map(([x,y]) => { const m = new THREE.Mesh(new THREE.CircleGeometry(.012,6), starM); m.position.set(x,y,.011); m.visible = false; win.add(m); return m; });
+  const frameM = toon(0xf4f4ee);
+  [[0,.53,1.82,.08],[0,-.53,1.82,.08],[-.89,0,.08,1.14],[.89,0,.08,1.14],[0,0,.05,1.0]].forEach(([x,y,w,h])=>{ win.add(at(part(new THREE.BoxGeometry(w,h,.08),0,{ mat:frameM, ol:1.04 }),x,y,.03)); });
+  win.add(at(part(new THREE.BoxGeometry(1.95,.07,.18),0,{ mat:frameM, ol:1.03 }),0,-.6,.07));
+
+  // Wall clock (runs far too fast)
+  const clock = new THREE.Group(); clock.position.set(-2.75,2.5,-2.93); scene.add(clock);
+  const clockFace = part(new THREE.CylinderGeometry(.27,.27,.06,32), 0xffffff, { ol:1.06 }); clockFace.rotation.x = Math.PI/2; clock.add(clockFace);
+  const hHand = new THREE.Group(), mHand = new THREE.Group(); clock.add(hHand, mHand); hHand.position.z = mHand.position.z = .04;
+  hHand.add(at(new THREE.Mesh(new THREE.BoxGeometry(.03,.13,.01), basic(0x1c2620)),0,.06,0));
+  mHand.add(at(new THREE.Mesh(new THREE.BoxGeometry(.02,.2,.01), basic(0xc22a35)),0,.09,0));
+
+  // Poster
+  const posterTex = canvasTex(220,270,(g,w,h)=>{ g.fillStyle="#fffef8"; g.fillRect(0,0,w,h); g.strokeStyle="#1f3d9a"; g.lineWidth=6; g.strokeRect(6,6,w-12,h-12);
+    g.fillStyle="#c22a35"; g.font="900 30px Arial Black, Arial, sans-serif"; g.textAlign="center"; g.fillText("TARGET",w/2,48); g.fillText("NOTA",w/2,82);
+    g.fillStyle="#1f3d9a"; [30,46,40,70,120].forEach((v,i)=>g.fillRect(28+i*34,240-v,22,v));
+    g.strokeStyle="#c22a35"; g.lineWidth=5; g.beginPath(); g.moveTo(40,210); g.lineTo(190,96); g.stroke(); g.beginPath(); g.moveTo(190,96); g.lineTo(170,100); g.moveTo(190,96); g.lineTo(184,116); g.stroke(); });
+  const poster = new THREE.Mesh(new THREE.PlaneGeometry(.85,1.04), basic(0xffffff,{ map:posterTex })); poster.position.set(2.45,2.2,-2.97); poster.rotation.z = -.04; scene.add(poster);
+
+  // Plant
+  const plant = new THREE.Group(); plant.position.set(-3.45,0,-2.2); scene.add(plant);
+
+  // Door (Axia comes in and out here)
+  const DOOR = new THREE.Vector3(3.45, 0, -2.97);
+  const doorG = new THREE.Group(); doorG.position.copy(DOOR); scene.add(doorG);
+  const frameM2 = toon(0xf4f4ee);
+  [[-.5,1.06,.08,2.16],[.5,1.06,.08,2.16],[0,2.12,1.08,.08]].forEach(([x,y,w,h]) => doorG.add(at(part(new THREE.BoxGeometry(w,h,.1),0,{ mat:frameM2, ol:1.03 }),x,y,.04)));
+  doorG.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.92,2.08), basic(0x2b2f2c)),0,1.04,.005));
+  const hinge = new THREE.Group(); hinge.position.set(-.46,0,.04); doorG.add(hinge);
+  const panel = at(part(new THREE.BoxGeometry(.92,2.06,.05),0x9a6e48,{ ol:1.02 }),.46,1.03,0); hinge.add(panel);
+  hinge.add(at(part(new THREE.SphereGeometry(.04,12,10),0xd3a02b,{ outline:false }),.82,1.0,.05));
+  const signTex = canvasTex(160,48,(g,w,h)=>{ g.fillStyle="#fffef8"; g.fillRect(0,0,w,h); g.fillStyle="#1c2620"; g.font="bold 22px Arial, sans-serif"; g.textAlign="center"; g.fillText("STAF NOTA",w/2,32); });
+  hinge.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.4,.12), basic(0xffffff,{ map:signTex })),.46,1.55,.03));
+  plant.add(at(part(new THREE.CylinderGeometry(.26,.2,.5,20),0xb0613d),0,.25,0));
+  [[0,.75,0,.32],[.18,.62,.08,.22],[-.18,.66,-.02,.24],[.05,.98,-.05,.2]].forEach(([x,y,z,r])=>plant.add(at(part(new THREE.SphereGeometry(r,16,12),0x3f8f4f),x,y,z)));
+
+  /* Desks */
+  const BX = -1.55, BZ = -.8, AX = 1.75, AZ = .28;
+  const wood = toon(0x7a5236), wood2 = toon(0x6b4630);
+  scene.add(at(part(new THREE.BoxGeometry(2.05,.08,.95),0,{ mat:wood, ol:1.02, recv:true }), BX,.78,BZ));
+  scene.add(at(part(new THREE.BoxGeometry(2.0,.74,.05),0,{ mat:wood2, ol:1.02 }), BX,.37,BZ+.44));
+  [-1,1].forEach(s => scene.add(at(part(new THREE.BoxGeometry(.06,.74,.9),0,{ mat:wood2, ol:1.02 }), BX+s*.98,.37,BZ)));
+  const chair = at(part(new THREE.BoxGeometry(.85,1.0,.12),0x3a3f45,{ ol:1.03 }), BX,1.15,-1.92); scene.add(chair);
+  const plateTex = canvasTex(256,48,(g,w,h)=>{ g.fillStyle="#d3a02b"; g.fillRect(0,0,w,h); g.fillStyle="#1c2620"; g.font="bold 24px Arial, sans-serif"; g.textAlign="center"; g.fillText("BU MELATI · DIREKTUR",w/2,32); });
+  const nplate = new THREE.Group(); nplate.position.set(BX,.87,BZ+.36); nplate.rotation.x = -.35; scene.add(nplate);
+  nplate.add(part(new THREE.BoxGeometry(.62,.12,.06),0xd3a02b,{ ol:1.04 }));
+  nplate.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.58,.1), basic(0xffffff,{ map:plateTex })),0,0,.031));
+  const stack = new THREE.Group(); stack.position.set(BX-.62,.82,BZ-.05); scene.add(stack);
+  const stackBox = at(part(new THREE.BoxGeometry(.36,.06,.46),0xfdfcf6,{ ol:1.03 }),0,.03,0); stack.add(stackBox);
+  const mug = at(part(new THREE.CylinderGeometry(.065,.055,.13,16),0xffffff),BX+.72,.89,BZ-.12); scene.add(mug);
+  const mugH = new THREE.Mesh(new THREE.TorusGeometry(.04,.012,8,16), toon(0xffffff)); mugH.position.set(.07,0,0); mug.add(mugH);
+  const stamp = new THREE.Group(); scene.add(stamp);
+  const STAMP_REST = new THREE.Vector3(BX+.42,.82,BZ+.02); stamp.position.copy(STAMP_REST);
+  stamp.add(at(part(new THREE.BoxGeometry(.17,.05,.11),0x2a2a2a),0,.025,0));
+  stamp.add(at(part(new THREE.CylinderGeometry(.028,.032,.15,12),0xc22a35),0,.12,0));
+  stamp.add(at(part(new THREE.SphereGeometry(.055,16,12),0xc22a35),0,.21,0));
+
+  scene.add(at(part(new THREE.BoxGeometry(1.35,.07,.78),0,{ mat:toon(0x9a6e48), ol:1.02, recv:true }), AX,.74,AZ));
+  scene.add(at(part(new THREE.BoxGeometry(1.3,.7,.05),0,{ mat:toon(0x87603d), ol:1.02 }), AX,.36,AZ+.36));
+  scene.add(at(part(new THREE.BoxGeometry(.7,.85,.1),0x3a3f45,{ ol:1.03 }), AX,1.02,-.82));
+  const crt = new THREE.Group(); crt.position.set(AX+.5,.78,AZ-.05); crt.rotation.y = 2.5; scene.add(crt);
+  crt.add(at(part(new THREE.BoxGeometry(.48,.4,.42),0xd9cfb5,{ ol:1.04 }),0,.22,0));
+  crt.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.36,.27), basic(0x2f6b4e)),0,.23,.212));
+  const paperTex = canvasTex(120,160,(g,w,h)=>{ g.fillStyle="#fffef8"; g.fillRect(0,0,w,h); g.fillStyle="#1f3d9a"; g.font="bold 22px Arial, sans-serif"; g.fillText("NOTA",10,28);
+    g.strokeStyle="#a4c0e2"; g.lineWidth=2; for (let y=46;y<150;y+=16){ g.beginPath(); g.moveTo(8,y); g.lineTo(w-8,y); g.stroke(); }
+    g.strokeStyle="#1f3d9a"; g.lineWidth=2; for (let y=58;y<130;y+=16){ g.beginPath(); g.moveTo(12,y); for(let x=12;x<w-30;x+=8) g.lineTo(x+4,y-3+Math.random()*6); g.stroke(); } });
+  const pad = new THREE.Group(); pad.position.set(AX-.18,.78,AZ+.06); pad.rotation.set(-Math.PI/2,0,.25); scene.add(pad);
+  pad.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.3,.4), toon(0xf5c2cf)),.015,-.015,0));
+  pad.add(at(new THREE.Mesh(new THREE.PlaneGeometry(.3,.4), toon(0xffffff,{ map:paperTex })),0,0,.002));
+  const pen = at(part(new THREE.CylinderGeometry(.012,.012,.2,8),0x1f3d9a,{ ol:1.2 }),AX+.08,.785,AZ+.1); pen.rotation.z = Math.PI/2; pen.rotation.y = .6; scene.add(pen);
+
+  /* Characters */
+  function makeChar(o){
+    const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+    body.add(at(part(new THREE.CylinderGeometry(o.tr[0],o.tr[1],o.th,24),o.body),0,o.ty,0));
+    body.add(at(part(new THREE.CylinderGeometry(.085,.095,.22,12),o.skin2,{ outline:false }),0,o.ty+o.th/2+.08,0));
+    const head = new THREE.Group(); head.position.y = o.hy; body.add(head);
+    const skinMat = toon(o.skin, { emissive:new THREE.Color(0xff2020), emissiveIntensity:0 });
+    const hr = o.hr;
+    const skull = part(new THREE.SphereGeometry(hr,32,24),0,{ mat:skinMat, ol:1.06 }); skull.scale.set(1,1.06,1); head.add(skull);
+    const surf = (x,y) => Math.sqrt(Math.max(0, hr*hr - x*x - (y/1.06)*(y/1.06)));
+    const eyeM = basic(0x1a120e);
+    const eyes = [-1,1].map(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.036,12,10), eyeM); e.position.set(s*hr*.34,.03,surf(hr*.34,.03)-.012); head.add(e); return e; });
+    const browM = basic(o.hair); const BY = .13;
+    const brows = [-1,1].map(s => { const b = new THREE.Mesh(new THREE.BoxGeometry(.12,.026,.03), browM); b.position.set(s*hr*.34,BY,surf(hr*.34,BY)+.004); head.add(b); return b; });
+    const lip = basic(o.lip), MY = -.13, mz = surf(0,MY)+.004;
+    const smile = new THREE.Mesh(new THREE.TorusGeometry(.058,.016,8,16,Math.PI), lip); smile.rotation.z = Math.PI; smile.position.set(0,MY+.035,mz-.01);
+    const open = new THREE.Mesh(new THREE.SphereGeometry(.06,16,12), basic(0x5a1020)); open.scale.set(1,.85,.35); open.position.set(0,MY,mz-.012);
+    const flat = new THREE.Mesh(new THREE.BoxGeometry(.11,.02,.02), lip); flat.position.set(0,MY,mz);
+    const grit = addOutline(new THREE.Mesh(new THREE.BoxGeometry(.14,.055,.02), basic(0xffffff)),1.18); grit.position.set(0,MY,mz);
+    [smile,open,flat,grit].forEach(m => head.add(m));
+    const cheekM = basic(0xe0545f,{ transparent:true, opacity:0 });
+    [-1,1].forEach(s => { const c = new THREE.Mesh(new THREE.SphereGeometry(.05,12,10), cheekM); c.scale.set(1,.7,.3); c.position.set(s*hr*.6,-.06,surf(hr*.6,-.06)-.006); head.add(c); });
+    const arms = [-1,1].map(s => { const p = new THREE.Group(); p.position.set(s*o.sw,o.sy,0); p.userData.side = s;
+      p.add(at(part(new THREE.CylinderGeometry(.08,.07,o.al,12),o.body),0,-o.al/2,0));
+      p.add(at(part(new THREE.SphereGeometry(.08,16,12),o.skin),0,-o.al-.04,0)); body.add(p); return p; });
+    const hipY = o.ty - o.th/2 + .06;
+    const legs = [-1,1].map(s => { const g = new THREE.Group(); g.position.set(s*.12,hipY,0);
+      g.add(at(part(new THREE.CylinderGeometry(.075,.065,hipY,12),o.legs),0,-hipY/2,0));
+      g.add(at(part(new THREE.BoxGeometry(.14,.08,.24),0x1c2620),0,-hipY+.04,.05)); body.add(g); return g; });
+    return { root, body, head, skinMat, eyes, brows, mouths:{ smile, open, flat, grit }, cheekM, arms, legs, hr, surf, BY };
+  }
+
+  // Bu Melati
+  const boss = makeChar({ skin:0xd39a71, skin2:0xc48c63, body:0x7a1d3d, legs:0xc48c63, hair:0x2a1a16, lip:0xb5243b, tr:[.3,.42], th:.95, ty:1.05, hy:1.87, hr:.3, sw:.4, sy:1.45, al:.5 });
+  (() => { const h = boss.head, hr = boss.hr, hair = 0x2a1a16;
+    h.add(at(part(new THREE.SphereGeometry(hr*1.12,32,24),hair,{ ol:1.05 }),0,.03,-.08));
+    const cap = part(new THREE.SphereGeometry(hr*1.05,32,16,0,Math.PI*2,0,Math.PI*.36),hair,{ outline:false }); cap.rotation.x = .38; cap.position.y = .02; h.add(cap);
+    h.add(at(part(new THREE.SphereGeometry(.15,20,16),hair),0,hr*1.12,-hr*.45));
+    const pin = at(part(new THREE.BoxGeometry(.24,.035,.035),0xd3a02b,{ outline:false }),0,hr*1.18,-hr*.38); pin.rotation.z = .35; h.add(pin);
+    const gl = toon(0x3a2a22);
+    boss.eyes.forEach(e => { const r = new THREE.Mesh(new THREE.TorusGeometry(.072,.012,8,24), gl); r.position.set(e.position.x,e.position.y,e.position.z+.03); h.add(r); });
+    h.add(at(new THREE.Mesh(new THREE.BoxGeometry(.05,.012,.012), gl),0,.04,boss.surf(0,.04)+.03));
+    [-1,1].forEach(s => h.add(at(part(new THREE.SphereGeometry(.035,12,10),0xd3a02b,{ outline:false }),s*hr*.97,-.11,.02)));
+    const collar = new THREE.Mesh(new THREE.ConeGeometry(.12,.26,3), toon(0xffffff)); collar.rotation.x = Math.PI; collar.position.set(0,1.42,.27); boss.body.add(collar);
+    boss.sparkles = [0,1,2].map(i => { const s = new THREE.Mesh(new THREE.OctahedronGeometry(.055), basic(0xf2c53d)); h.add(s); s.visible = false; return s; });
+  })();
+  boss.root.position.set(BX,0,-1.4); boss.root.rotation.y = .32; scene.add(boss.root);
+
+  // Axia
+  const axia = makeChar({ skin:0xc58c63, skin2:0xb47e58, body:0xcfe0f2, legs:0x2d3640, hair:0x1b1310, lip:0x7a3a2a, tr:[.27,.36], th:.85, ty:.98, hy:1.71, hr:.28, sw:.36, sy:1.34, al:.46 });
+  (() => { const h = axia.head, hr = axia.hr, hair = 0x1b1310;
+    const cap = part(new THREE.SphereGeometry(hr*1.06,32,16,0,Math.PI*2,0,Math.PI*.42),hair,{ ol:1.04 }); cap.rotation.x = .22; h.add(cap);
+    for (let i=0;i<7;i++){ const a = (i/7)*Math.PI*2; const c = part(new THREE.ConeGeometry(.07,.22,8),hair,{ ol:1.1 });
+      c.position.set(Math.sin(a)*.14, hr*.98, Math.cos(a)*.14 - .02); c.rotation.set(Math.cos(a)*.75,0,-Math.sin(a)*.75); h.add(c); }
+    const red = toon(0xc22a35);
+    [-1,1].forEach(s => { const st = new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.34,6), red); st.position.set(s*.08,1.22,.27); st.rotation.z = s*.3; st.rotation.x = -.15; axia.body.add(st); });
+    axia.body.add(at(part(new THREE.BoxGeometry(.11,.14,.015),0xffffff,{ ol:1.12 }),0,1.06,.32));
+    axia.vein = new THREE.Group(); axia.vein.position.set(hr*.5, hr*.55, axia.surf(hr*.5,hr*.55)+.01); h.add(axia.vein);
+    [.6,-.6].forEach(r => { const v = new THREE.Mesh(new THREE.BoxGeometry(.085,.02,.01), basic(0xd3202e)); v.rotation.z = r; axia.vein.add(v); });
+    axia.sweat = new THREE.Mesh(new THREE.SphereGeometry(.035,12,10), basic(0x8fd0f0)); axia.sweat.scale.set(1,1.4,.6);
+    axia.sweat.position.set(-hr*.82,.12,axia.surf(hr*.82,.12)); h.add(axia.sweat);
+    axia.steam = [0,1,2,3].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(.07,12,10), basic(0xffffff,{ transparent:true, opacity:0 })); h.add(m); return m; });
+  })();
+  axia.root.position.set(AX,0,-.38); axia.root.rotation.y = -.32; scene.add(axia.root);
+
+  /* Props that move */
+  const paper = new THREE.Group(); paper.visible = false; scene.add(paper);
+  const pm = new THREE.Mesh(new THREE.PlaneGeometry(.3,.4), toon(0xffffff,{ map:paperTex, side:THREE.DoubleSide })); pm.castShadow = true; paper.add(pm);
+  const decal = new THREE.Mesh(new THREE.PlaneGeometry(.2,.08), basic(0xc22a35,{ side:THREE.DoubleSide, transparent:true, opacity:.85 }));
+  decal.position.set(0,.03,.003); decal.rotation.z = .35; decal.visible = false; paper.add(decal);
+  const PAPER_DESK = new THREE.Vector3(BX,.83,BZ+.1);
+  const ballGeo = new THREE.IcosahedronGeometry(.09,0), ballMat = toon(0xfdfcf6);
+  const balls = [];
+
+  /* State */
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const M = reduce ? .35 : 1;
+  const st = { mood:"sweet", lvl:"hi", talkUntil:0, thinking:false, writing:false, raiseUntil:0, hop:0, flinch:0, shake:0, clockBoost:1, dayF:0, dayFv:0,
+    night:0, nightV:0, sleep:0, sleepV:0, walk:false, axMove:false, door:0, doorV:0, bossTrack:false, cineK:0, skip:false, clockFast:false, noUntil:0, puzzleUntil:0 };
+  const cinePos = new THREE.Vector3(), cineLook = new THREE.Vector3(), lookTmp = new THREE.Vector3(), posTmp = new THREE.Vector3();
+  const tweens = [];
+  const tween = (dur, fn, tag) => new Promise(res => tweens.push({ t:0, dur:Math.max(.01,dur), fn, res, tag }));
+  const wait = ms => tween(ms/1000, () => {}, "cine");
+  const ease = p => p<.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+  const L = (a,b,k) => a + (b-a)*k;
+
+  const BP = {
+    sweet:      { angry:-.14, byL:0, byR:0, eye:1,   mouth:"smile", blush:.45, red:0,   lean:0,   yaw:0,   sway:.035, arms:[{x:-.45,o:-.3},{x:-.45,o:-.3}] },
+    furious:    { angry:.5,   byL:-.015, byR:-.015, eye:.8, mouth:"open", blush:.2, red:.35, lean:.07, yaw:0, sway:0, shake:1, arms:[{x:0,o:2.5},{x:0,o:2.5}] },
+    dramatic:   { angry:-.3,  byL:.035, byR:.035, eye:1.3, mouth:"open", blush:0, red:0, lean:-.07, yaw:-.1, sway:.06, arms:[{x:-.35,o:.55},{x:0,o:2.95}] },
+    dreamy:     { angry:-.1,  byL:.02, byR:.02, eye:.12, mouth:"smile", blush:.4, red:0, lean:0, yaw:.1, sway:.13, sparkle:1, arms:[{x:-2.05,o:-.5},{x:-2.05,o:-.5}] },
+    suspicious: { angry:.2,   byL:-.012, byR:.04, eye:.42, mouth:"flat", blush:0, red:0, lean:.16, yaw:.35, sway:0, arms:[{x:-1.35,o:-.65},{x:-1.35,o:-.65}] },
+  };
+  const AP = {
+    hi:  { angry:0,   eye:1,   mouth:"flat", red:0,   slump:0,   sweat:false, vein:false, steam:false },
+    mid: { angry:.3,  eye:.55, mouth:"flat", red:.06, slump:.1,  sweat:true,  vein:false, steam:false },
+    lo:  { angry:.55, eye:.4,  mouth:"grit", red:.32, slump:.05, sweat:true,  vein:true,  steam:true, shake:1 },
+  };
+
+  function face(c, P, k, T, talking){
+    c.brows.forEach((b,i) => { const s = i ? 1 : -1; b.rotation.z = L(b.rotation.z, s*P.angry, k); b.position.y = L(b.position.y, c.BY + (i ? (P.byR||0) : (P.byL||0)), k); });
+    const blink = (T % 3.9) < .11 ? .1 : 1;
+    c.eyes.forEach(e => { e.scale.y = L(e.scale.y, P.eye*blink, Math.min(1,k*2)); });
+    const m = c.mouths;
+    Object.keys(m).forEach(n => m[n].visible = false);
+    if (talking){ m.open.visible = true; m.open.scale.y = .2 + .65*Math.abs(Math.sin(T*13)); }
+    else { m[P.mouth].visible = true; if (P.mouth==="open") m.open.scale.y = .85; }
+    c.cheekM.opacity = L(c.cheekM.opacity, P.blush||0, k);
+    c.skinMat.emissiveIntensity = L(c.skinMat.emissiveIntensity, P.red||0, k);
+  }
+  function armTo(a, x, o, k){ a.rotation.x = L(a.rotation.x, x, k); a.rotation.z = L(a.rotation.z, a.userData.side*o, k); }
+
+  let VW = 1, VH = 1;
+  const VIEW = { cx:.5, cy:.43, fw:.92, fh:.66 }, VT = Object.assign({}, VIEW);
+  function applyView(k){
+    for (const key in VT) VIEW[key] = L(VIEW[key], VT[key], k);
+    const Wv = 2*Math.max(VIEW.cx, 1-VIEW.cx)*VW, Hv = 2*Math.max(VIEW.cy, 1-VIEW.cy)*VH;
+    const tn = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+    const SW = VW < 760 ? 2.5 : 2.75;
+    camDist = Math.max(5.0, SW*Hv/(VIEW.fw*VW*tn) + 1.2, 1.55*Hv/(VIEW.fh*VH*tn) + 1.2);
+    camera.aspect = Wv/Hv;
+    camera.setViewOffset(Wv, Hv, Wv/2 - VIEW.cx*VW, Hv/2 - VIEW.cy*VH, VW, VH);
+  }
+  const pv = new THREE.Vector3();
+  function proj(obj, up){ obj.getWorldPosition(pv); pv.y += up; pv.project(camera); return { x:(pv.x+1)/2*VW, y:(1-pv.y)/2*VH }; }
+  let onFrameCb = null;
+  let T = 0, last = performance.now();
+  function update(dt, rdt){
+    T += dt*M;
+    const now = performance.now(), k = 1 - Math.exp(-dt*7);
+    for (let i = tweens.length-1; i >= 0; i--){ const tw = tweens[i]; tw.t += rdt; const p = Math.min(1, tw.t/tw.dur); tw.fn(ease(p), p); if (p>=1){ tweens.splice(i,1); tw.res(); } }
+
+    // Boss
+    const P = BP[st.mood] || BP.sweet, talking = now < st.talkUntil;
+    face(boss, P, k, T, talking);
+    const bossYaw = st.bossTrack ? Math.atan2(axia.root.position.x - BX, axia.root.position.z + 1.4) * .7 : .32 + P.yaw;
+    boss.root.rotation.y = L(boss.root.rotation.y, bossYaw, k);
+    boss.body.rotation.x = L(boss.body.rotation.x, P.lean, k);
+    boss.body.rotation.z = Math.sin(T*1.3)*P.sway*M;
+    boss.body.scale.y = 1 + .012*Math.sin(T*2.2)*M;
+    boss.body.position.x = P.shake ? Math.sin(T*42)*.012*M : 0;
+    boss.root.position.y = st.hop;
+    boss.head.rotation.z = L(boss.head.rotation.z, st.thinking ? .2 : 0, k) + Math.sin(T*1.1)*.004;
+    boss.head.rotation.x = talking ? Math.sin(T*9)*.06*M : L(boss.head.rotation.x, st.thinking ? -.12 : 0, k);
+    const ba = st.thinking ? [{x:-2.25,o:-.55},{x:-.45,o:-.3}] : P.arms;
+    armTo(boss.arms[0], ba[0].x, ba[0].o, k);
+    armTo(boss.arms[1], ba[1].x + (talking && !P.shake ? Math.sin(T*6)*.35*M : 0), ba[1].o, k);
+    if (P.shake){ boss.arms.forEach((a,i) => { a.rotation.z += Math.sin(T*24+i)*.08*M; }); }
+    boss.sparkles.forEach((s,i) => { s.visible = !!P.sparkle; const a = T*1.5 + i*2.1; s.position.set(Math.cos(a)*.45, .3+Math.sin(T*2+i)*.08, Math.sin(a)*.45); s.rotation.y = T*3; });
+
+    // Axia
+    const A = AP[st.lvl] || AP.hi;
+    face(axia, A, k, T+1.7, false);
+    st.sleepV = L(st.sleepV, st.sleep, 1 - Math.exp(-rdt*2.5));
+    const zz = st.sleepV;
+    if (zz > .5) axia.eyes.forEach(e => { e.scale.y = .08; });
+    axia.body.rotation.x = L(axia.body.rotation.x, A.slump + (st.writing ? .12 : 0), k) * (1-zz) + zz*(.5 + Math.sin(T*1.6)*.02);
+    const wph = st.walk ? Math.sin(T*9/M) : 0;
+    axia.legs[0].rotation.x = L(axia.legs[0].rotation.x, wph*.55, .5); axia.legs[1].rotation.x = L(axia.legs[1].rotation.x, -wph*.55, .5);
+    axia.body.scale.y = 1 + .01*Math.sin(T*2.6)*M;
+    axia.body.position.x = A.shake ? Math.sin(T*35)*.006*M : 0;
+    const puzzled = now < st.puzzleUntil, saysNo = now < st.noUntil;
+    axia.head.rotation.x = L(axia.head.rotation.x, (st.writing && !zz ? .28 : 0) + zz*.55, k);
+    axia.head.rotation.y = saysNo ? Math.sin(T*16/M)*.4 : L(axia.head.rotation.y, talking ? .35 : 0, k);
+    axia.head.rotation.z = st.flinch*.5 + (puzzled ? .22 : 0);
+    if (!st.axMove) axia.root.position.x = AX + st.flinch*.12;
+    axia.root.position.y = st.walk ? Math.abs(Math.sin(T*9/M))*.04 : 0;
+    const raising = now < st.raiseUntil;
+    if (zz > .3){ armTo(axia.arms[0], -1.5, -.25, k); armTo(axia.arms[1], -1.5, -.25, k); }
+    else if (st.walk){ armTo(axia.arms[0], -wph*.5, -.08, .5); armTo(axia.arms[1], wph*.5, -.08, .5); }
+    else {
+      if (st.writing){ armTo(axia.arms[0], -1.15 + Math.sin(T*9)*.12*M, -.28 + Math.sin(T*4.5)*.1*M, k*1.5); }
+      else armTo(axia.arms[0], -.85, -.12, k);
+      if (raising) armTo(axia.arms[1], -.15, 2.75, k*1.4);
+      else if (puzzled) armTo(axia.arms[1], -2.5 + Math.sin(T*14)*.12, .55, k*1.5);
+      else if (saysNo) armTo(axia.arms[1], -1.2, -.6, k*1.5);
+      else armTo(axia.arms[1], -.85, -.12, k);
+    }
+    if (zz > .3){ axia.vein.visible = false; axia.sweat.visible = false; axia.steam.forEach(s => s.material.opacity = 0); } else {
+    axia.vein.visible = A.vein; axia.vein.scale.setScalar(1 + .15*Math.sin(T*10));
+    axia.sweat.visible = A.sweat; axia.sweat.position.y = .12 - ((T*.25)%1)*.08;
+    axia.steam.forEach((s,i) => { const p = (T*.55 + i/4) % 1; s.material.opacity = A.steam ? (1-p)*.8 : 0; s.position.set((i%2 ? .12 : -.12) + Math.sin(T*3+i)*.03, axia.hr + .1 + p*.5, -.02); s.scale.setScalar(.6 + p*.9); });
+    }
+
+    // Light warms toward evening as the work day goes on
+    st.dayFv = L(st.dayFv, st.dayF, 1 - Math.exp(-rdt*1.5));
+    st.nightV = L(st.nightV, st.night, 1 - Math.exp(-rdt*1.3));
+    const nv = st.nightV;
+    sun.color.setRGB(1 - nv*.45, 1 - st.dayFv*.28*(1-nv) - nv*.35, 1 - st.dayFv*.5*(1-nv));
+    sun.intensity = (.72 - st.dayFv*.1) * (1 - nv*.75); hemi.intensity = .62 - nv*.38;
+    glass.material.color.setRGB(1 - nv*.84, 1 - nv*.8, 1 - nv*.62);
+    moon.visible = nv > .45; stars.forEach(m => m.visible = nv > .55);
+    st.doorV = L(st.doorV, st.door, 1 - Math.exp(-rdt*5)); hinge.rotation.y = -1.35*st.doorV;
+    // Room bits
+    mHand.rotation.z -= dt*1.6*st.clockBoost*M; hHand.rotation.z -= dt*.13*st.clockBoost*M;
+    st.clockBoost = L(st.clockBoost, st.clockFast ? 45 : st.mood==="furious" ? 6 : 1, k*.3);
+    st.shake = Math.max(0, st.shake - dt);
+    const sh = st.shake*.18;
+    applyView(1 - Math.exp(-rdt*4));
+    camera.position.set(.15 + Math.sin(T*.28)*.12*M + (Math.random()-.5)*sh, 1.2 + camDist*.2 + Math.sin(T*.21)*.04*M + (Math.random()-.5)*sh, camDist);
+    if (st.cineK > .001){
+      const far = VW < VH ? 1.9 : VW < 900 ? 1.25 : 1;
+      posTmp.copy(cinePos).sub(cineLook).multiplyScalar(far).add(cineLook);
+      camera.position.lerp(posTmp, st.cineK);
+      lookTmp.copy(LOOK).lerp(cineLook, st.cineK);
+      camera.lookAt(lookTmp);
+    } else camera.lookAt(LOOK);
+  }
+
+  function resize(){ VW = host.clientWidth||1; VH = host.clientHeight||1; renderer.setSize(VW, VH, false); }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(host); else window.addEventListener("resize", resize);
+  resize();
+  function frame(now){ requestAnimationFrame(frame); if (document.hidden){ last = now; return; } const raw = Math.max(0,(now-last)/1000), dt = Math.min(.05,raw); last = now; update(dt, Math.min(.25,raw)); renderer.render(scene, camera); if (onFrameCb) onFrameCb({ boss:proj(boss.head,.62), axia:proj(axia.head,.62) }); }
+  requestAnimationFrame(frame);
+
+  /* Cutscenes */
+  const camTo = (pos, look, dur) => { const p0 = cinePos.clone(), l0 = cineLook.clone();
+    return tween(dur, e => { cinePos.lerpVectors(p0, pos, e); cineLook.lerpVectors(l0, look, e); }, "cine"); };
+  const V3 = (x,y,z) => new THREE.Vector3(x,y,z);
+  async function walkTo(pts, speed){
+    for (const [x,z] of pts){
+      const from = axia.root.position.clone(), to = V3(x,0,z), d = from.distanceTo(to);
+      const r0 = axia.root.rotation.y, r1 = Math.atan2(x - from.x, z - from.z);
+      await tween(Math.max(.2, d/speed), (e,p) => { axia.root.position.x = L(from.x, to.x, p); axia.root.position.z = L(from.z, to.z, p);
+        axia.root.rotation.y = L(r0, r1, Math.min(1, p*4)); }, "cine");
+      if (st.skip) return;
+    }
+  }
+  function settleAxia(){ st.walk = false; st.axMove = false; st.door = 0; st.bossTrack = false; axia.root.position.set(AX,0,-.38); axia.root.rotation.y = -.32; }
+  function endCine(){ st.skip = false; return tween(.9, e => { st.cineK = 1 - e; }); }
+  async function intro(cap){
+    st.skip = false; st.sleep = 0; st.night = 0; st.cineK = 1;
+    axia.root.position.set(DOOR.x, 0, DOOR.z + .25); axia.root.rotation.y = 0; st.axMove = true; st.door = 0;
+    cinePos.set(.2, 2.4, 4.2); cineLook.set(1.2, 1.4, -2.0);
+    cap(0); await camTo(V3(.9, 2.0, 2.8), V3(3.1, 1.2, -2.4), 2.2); if (st.skip) return finish();
+    cap(1); st.door = 1; await wait(1700); if (st.skip) return finish();
+    st.walk = true; st.bossTrack = true; cap(2);
+    camTo(V3(.3, 2.15, 3.9), V3(2.3, 1.15, -1.0), 3.2);
+    await walkTo([[3.3,-1.7],[2.75,-.5],[AX,-.38]], 1.1); if (st.skip) return finish();
+    st.walk = false; st.door = 0;
+    const r0 = axia.root.rotation.y; await tween(.4, e => { axia.root.rotation.y = L(r0, -.32, e); }, "cine"); if (st.skip) return finish();
+    cap(3); st.bossTrack = false;
+    await camTo(V3(BX + 1.1, 1.95, 1.9), V3(BX, 1.5, -1.4), 1.1); if (st.skip) return finish();
+    await wait(1300); if (st.skip) return finish();
+    return finish();
+    async function finish(){ settleAxia(); await endCine(); }
+  }
+  async function night(cap, dream){
+    st.skip = false; st.cineK = 0; cinePos.copy(camera.position); cineLook.copy(LOOK);
+    tween(.8, e => { st.cineK = e; });
+    st.writing = false; st.night = 1; st.sleep = 1; st.clockFast = true;
+    cap(0); dream(true);
+    await camTo(V3(AX + 1.0, 1.85, 2.6), V3(AX - .1, 1.05, -.4), 2.2); if (st.skip) return finish();
+    await wait(1600); if (st.skip) return finish();
+    cap(1); dream(false);
+    await camTo(V3(BX + 1.0, 1.9, 1.9), V3(BX, 1.45, -1.4), 1.8); if (st.skip) return finish();
+    await wait(1400); if (st.skip) return finish();
+    cap(2);
+    await camTo(V3(.15, 2.4, 5.4), V3(.05, 1.3, -.6), 1.6); if (st.skip) return finish();
+    st.night = 0; st.clockFast = false; await wait(1900); if (st.skip) return finish();
+    cap(3); st.sleep = 0; st.shake = .4;
+    tween(.6, (e,p) => { st.flinch = Math.sin(p*Math.PI); st.hop = Math.sin(p*Math.PI)*.15; });
+    await wait(900); if (st.skip) return finish();
+    return finish();
+    async function finish(){ st.night = 0; st.sleep = 0; st.clockFast = false; st.flinch = 0; st.hop = 0; dream(false); await endCine(); }
+  }
+
+  /* Choreography */
+  const tmp = new THREE.Vector3();
+  async function tossBall(){
+    const from = paper.position.clone();
+    const ball = part(ballGeo,0,{ mat:ballMat, ol:1.15 }); ball.position.copy(from); ball.scale.setScalar(.01); scene.add(ball); balls.push(ball);
+    if (balls.length>14){ const old = balls.shift(); scene.remove(old); }
+    await tween(.22, e => { paper.scale.setScalar(1-e*.95); ball.scale.setScalar(.01+e); });
+    paper.visible = false; paper.scale.setScalar(1); decal.visible = false;
+    axia.head.getWorldPosition(tmp); const to = tmp.clone().add(new THREE.Vector3(0,.12,.15));
+    await tween(.6, (e,p) => { ball.position.lerpVectors(from,to,p); ball.position.y += Math.sin(p*Math.PI)*.9; ball.rotation.x += .3; ball.rotation.z += .2; });
+    st.shake = .12;
+    tween(.5, (e,p) => { st.flinch = Math.sin(p*Math.PI)*(1-p*.3); });
+    const land = new THREE.Vector3(AX + (Math.random()-.2)*1.1, .09, AZ + .7 + Math.random()*.6);
+    const hit = ball.position.clone();
+    await tween(.45, (e,p) => { ball.position.lerpVectors(hit,land,p); ball.position.y = L(hit.y,.09,p*p) + Math.sin(p*Math.PI)*.25; });
+  }
+
+  return {
+    view(v){ Object.assign(VT, v); },
+    intro, night,
+    skip(){ st.skip = true; for (let i = tweens.length-1; i >= 0; i--) if (tweens[i].tag==="cine"){ const tw = tweens[i]; tweens.splice(i,1); tw.res(); } },
+    refuse(){ st.noUntil = performance.now() + 1100; st.shake = .2; },
+    puzzled(){ st.puzzleUntil = performance.now() + 1600; },
+    time(f){ st.dayF = clamp(f, 0, 1); },
+    onFrame(fn){ onFrameCb = fn; },
+    currentView(){ return { cx:VIEW.cx, cy:VIEW.cy }; },
+    mood(m){ st.mood = MOODS.includes(m) ? m : "dramatic"; },
+    level(l){ st.lvl = l; },
+    writing(on){ st.writing = !!on; },
+    talk(text){ const n = String(text||"").length; st.talkUntil = performance.now() + clamp(n*45, 900, 5200); },
+    thinking(on){ st.thinking = !!on; },
+    ask(){ st.raiseUntil = performance.now() + 1400; },
+    dropPaper(){ paper.visible = false; decal.visible = false; },
+    newTask(){
+      if (!paper.visible) return;
+      const from = paper.position.clone(), to = stack.position.clone().add(new THREE.Vector3(0,.07*stack.scale.y,0));
+      tween(.45, (e,p) => { paper.position.lerpVectors(from,to,e); }).then(() => { paper.visible = false; decal.visible = false; stack.scale.y = Math.min(4, stack.scale.y + .25); });
+    },
+    reset(){ balls.splice(0).forEach(b => scene.remove(b)); paper.visible = false; decal.visible = false; stack.scale.y = 1; st.flinch = 0; st.hop = 0; },
+    submit(){
+      paper.visible = true; decal.visible = false; paper.scale.setScalar(1);
+      const a = pad.position.clone().add(new THREE.Vector3(0,.04,0)), b = PAPER_DESK.clone();
+      return tween(.95, (e,p) => {
+        paper.position.lerpVectors(a,b,e); paper.position.y += Math.sin(p*Math.PI)*1.15;
+        paper.rotation.set(-Math.PI/2 + Math.sin(p*Math.PI)*1.25, p*Math.PI*2, .1);
+      }).then(() => { paper.position.copy(b); paper.rotation.set(-Math.PI/2,0,.1); });
+    },
+    verdict(ok){
+      return new Promise(resolve => { (async () => {
+        const rest = stamp.position.clone(), above = new THREE.Vector3(paper.position.x, .82+.55, paper.position.z);
+        await tween(.32, e => stamp.position.lerpVectors(rest, above, e));
+        await tween(.1, (e,p) => { stamp.position.y = above.y - (above.y - .835)*p*p; });
+        decal.material.color.set(ok ? 0x2c7a4c : 0xc22a35); decal.visible = true; st.shake = .25;
+        resolve();
+        await tween(.2, e => { stamp.position.y = .835 + .3*e; });
+        const mid = stamp.position.clone();
+        tween(.35, e => stamp.position.lerpVectors(mid, STAMP_REST, e));
+        if (ok) await tween(.45, (e,p) => { st.hop = Math.sin(p*Math.PI)*.14; });
+        else { await sleep(250); await tossBall(); }
+      })(); });
+    }
+  };
+}
+const FX = (() => {
+  try { return buildFX(); }
+  catch(e){ console.error(e); const n = $("nogl"); n.hidden = false; n.textContent = t("nogl");
+    return { mood(){}, level(){}, writing(){}, talk(){}, thinking(){}, ask(){}, newTask(){}, dropPaper(){}, reset(){}, submit(){ return sleep(300); }, verdict(){ return Promise.resolve(); }, view(){}, onFrame(){}, currentView(){ return { cx:.5, cy:.42 }; }, time(){}, intro(){ return Promise.resolve(); }, night(){ return Promise.resolve(); }, skip(){}, refuse(){}, puzzled(){} }; }
+})();
+
+/* ================= AI BRAIN ================= */
+const inClaude = !!(window.claude && typeof window.claude.use === "function");
+const AI = {
+  mode: store.get("axia-ai-mode") || (inClaude ? "claude" : "local"),
+  url: store.get("axia-ai-url") || GAME_CONFIG.serverUrl || "http://localhost:11434/v1/chat/completions",
+  model: store.get("axia-ai-model") || (GAME_CONFIG.serverUrl ? GAME_CONFIG.serverModel : "bu-melati"),
+};
+if (AI.mode==="claude" && !inClaude) AI.mode = "local";
+const samplePromise = inClaude ? window.claude.use("sample").catch(() => null) : Promise.resolve(null);
+let claudeDead = false;
+async function getSample(){ if (claudeDead) return null; const s = await samplePromise; if (!s) claudeDead = true; return s; }
+const HIDE = new Set(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","unavailable"]);
+const RETRY = new Set(["rate_limited","session_expired","upstream_error"]);
+
+function parseLoose(tx){
+  try { return JSON.parse(tx); } catch(e){}
+  const f = tx.match(/```(?:json)?\s*([\s\S]*?)```/); if (f){ try { return JSON.parse(f[1]); } catch(e){} }
+  const a = tx.indexOf("{"), b = tx.lastIndexOf("}"); if (a>=0 && b>a){ try { return JSON.parse(tx.slice(a,b+1)); } catch(e){} }
+  throw { code:"invalid_json" };
+}
+async function localChat(prompt, json){
+  const content = /qwen3/i.test(AI.model) ? prompt + "\n/no_think" : prompt;
+  const base = { model:AI.model, temperature:.9, stream:false, messages:[
+    { role:"system", content: json ? "You write dialogue for a comedy game. Reply with one valid JSON object and nothing else." : "You write dialogue for a comedy game. Reply in plain text only." },
+    { role:"user", content } ] };
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 120000);
+  const go = body => fetch(AI.url, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body), signal:ctl.signal });
+  try {
+    let r = await go(json ? Object.assign({ response_format:{ type:"json_object" } }, base) : base);
+    if (json && (r.status===400 || r.status===422)) r = await go(base);
+    if (!r.ok) throw { code:"local", message:"HTTP " + r.status };
+    const d = await r.json();
+    let tx = (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || (d && d.message && d.message.content) || "";
+    tx = String(tx).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    if (!tx) throw { code:"local", message:"empty reply" };
+    return tx;
+  } catch(e){
+    if (e && e.code) throw e;
+    throw { code:"local", message: e && e.name==="AbortError" ? "timeout" : (inClaude ? "blocked inside claude.ai" : "no connection / CORS") };
+  } finally { clearTimeout(timer); }
+}
+async function aiJSON(prompt){
+  if (AI.mode==="claude"){ const s = await getSample(); if (!s) throw { code:"unavailable" }; return await s.json(prompt, { modelTier:"quick", cache:false }); }
+  if (AI.mode==="local") return parseLoose(await localChat(prompt, true));
+  throw { code:"script" };
+}
+async function aiText(prompt, onText){
+  if (AI.mode==="claude"){ const s = await getSample(); if (!s) throw { code:"unavailable" };
+    const { text } = await s(prompt, { modelTier:"quick", cache:false, onText:({ text }) => onText(text) }); return text; }
+  if (AI.mode==="local"){ const tx = await localChat(prompt, false); onText(tx); return tx; }
+  throw { code:"script" };
+}
+let lastNote = "";
+function handleAIError(e){
+  // returns "retry" when the player should press retry, otherwise records a note and lets the script take over
+  const code = e && e.code;
+  if (AI.mode==="claude" && RETRY.has(code)) return "retry";
+  if (AI.mode==="claude" && HIDE.has(code)){ claudeDead = true; lastNote = t("claudeOff"); }
+  else if (code==="local") lastNote = t("localFail").replace("{e}", e.message||"error");
+  else lastNote = "";
+  return "script";
+}
+function aiLabel(){
+  if (AI.mode==="local") return t("byLocal").replace("{m}", AI.model);
+  if (AI.mode==="claude" && !claudeDead) return t("byClaude");
+  return AI.mode==="claude" ? t("claudeOff") : t("byScript");
+}
+function errText(e){ if (e && e.code==="rate_limited") return t("rate"); if (e && e.code==="session_expired") return t("expired"); return t("err"); }
+
+const WORLD = `You write lines for a comedy browser game called "Axia Nota", set in a small trading office (PT. Nota Jaya Abadi) in Batam, Indonesia.
+Characters:
+- Bu Melati: the female director and Axia's boss. Confident, dramatic and completely unhinged. Her requests are absurd but she delivers them as if they were normal business. She sometimes blurts out an illogical statement that has nothing to do with anything.
+- Axia: a young office clerk whose whole job is writing "nota" (handwritten sales receipts). He is fed up, but he still does his job.
+Humor rules: cartoonish, harmless slapstick absurdity (the kind of joke is "buy a missile to bomb Batam and make a nota for it"). Never give real-world how-to details, never name real living people, no slurs, nothing sexual, nothing cruel about real groups.`;
+function requestPrompt(){
+  const day = S.day;
+  const recent = S.recent.slice(-6).map(r => "- " + r).join("\n") || "- (none yet)";
+  return `${WORLD}
+
+Write Bu Melati's next request to Axia. It must be something Axia can write a nota for: name 1 to 4 concrete things to buy, each with a quantity, and say who the nota should be addressed to. Escalate the weirdness with the day number (day ${day}). Vary the topic, the mood and the shape of the joke. Mention local Batam/Riau Islands places sometimes.
+Do not repeat or closely copy these recent requests:
+${recent}
+
+Language for every text field: ${t("lang")}
+
+Reply with only this JSON object:
+{"request":"what she says to Axia, 1-3 sentences, includes items, quantities and who the nota is for","aside":"an unrelated illogical remark she adds; use an empty string about half the time","mood":"one of sweet, furious, dramatic, dreamy, suspicious","axia":"Axia's short annoyed inner thought about this request, max 12 words","items":[{"name":"short item name","qty":1}],"to":"who the nota is addressed to"}`;
+}
+function judgePrompt(nota){
+  const c = S.cur;
+  const rows = nota.rows.map(r => `  ${r.qty} x ${r.name} @ Rp ${rp(r.price)} = Rp ${rp(r.qty*r.price)}`).join("\n");
+  return `${WORLD}
+
+Bu Melati asked Axia: "${c.request}"
+What she expected: ${c.items.map(i => i.qty + " x " + i.name).join("; ") || "(see request)"}, addressed to "${c.to}".
+
+Axia handed her this nota:
+  To: ${nota.to}
+  Date: ${nota.date}
+${rows}
+  Total: Rp ${rp(nota.total)}
+  Signed by Axia: yes
+
+Judge it as Bu Melati. Be mostly fair: approve when the nota reasonably covers what she asked (spelling and exact wording don't matter, prices are Axia's guess). Reject when items are missing, quantities are clearly wrong, it is addressed to the wrong party, or it is obvious nonsense. About one time in five, follow an absurd personal whim instead (reject for a ridiculous reason, or approve a wrong nota because she likes the handwriting). She has strong, illogical opinions about prices; comment on them sometimes.
+
+Language for every text field: ${t("lang")}
+
+Reply with only this JSON object:
+{"verdict":"approved" or "rejected","reply":"her reaction to Axia, 1-3 sentences, in character","stamp":"1-2 word rubber stamp text in capitals, e.g. ${S.lang==="id"?"LUNAS, DITOLAK, MENCURIGAKAN":"PAID, REJECTED, SUSPICIOUS"}","patience":integer from -25 to 5 for how this affects Axia's patience (unfair rejections hurt most, fair approvals cost little),"mood":"one of sweet, furious, dramatic, dreamy, suspicious","axia":"Axia's inner thought, max 12 words"}`;
+}
+function askPrompt(q){
+  const c = S.cur;
+  return `${WORLD}
+
+Bu Melati's current request to Axia: "${c ? c.request : "(no task given yet)"}"
+Axia just asked her: "${q}"
+
+Answer as Bu Melati in 1-3 short sentences. Stay in character: confident and illogical, but include one genuinely useful hint about the nota (an item, a quantity or who it's for) if there is a task. Plain text only, no quotes around it.
+Language: ${t("lang")}`;
+}
+
+/* ================= NOTA ================= */
+function buildRows(){
+  const tb = $("rows"); tb.innerHTML = "";
+  for (let i=0;i<ROWS;i++){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><input class="ink r" id="q${i}" type="number" min="0" max="999999" inputmode="numeric" aria-label="qty ${i+1}"></td>
+      <td><input class="ink" id="n${i}" maxlength="60" aria-label="item ${i+1}"></td>
+      <td><input class="ink r" id="p${i}" inputmode="numeric" maxlength="20" aria-label="price ${i+1}"></td>
+      <td class="amt" id="a${i}"></td>`;
+    tb.appendChild(tr);
+  }
+  tb.addEventListener("input", e => { if (e.target.id && e.target.id[0]==="p"){ const d = digits(e.target.value); e.target.value = d ? rp(d) : ""; } calc(); });
+}
+function readRows(){
+  const out = [];
+  for (let i=0;i<ROWS;i++){ const name = $("n"+i).value.trim(); const qty = Math.max(0, Math.floor(Number($("q"+i).value)||0)); const price = Number(digits($("p"+i).value))||0; if (name) out.push({ name, qty:qty||1, price }); }
+  return out;
+}
+function calc(){
+  let total = 0;
+  for (let i=0;i<ROWS;i++){ const a = (Number($("q"+i).value)||0) * (Number(digits($("p"+i).value))||0); $("a"+i).textContent = a ? rp(a) : ""; total += a; }
+  $("total").textContent = rp(total); return total;
+}
+function clearNota(){
+  $("fTo").value = "";
+  $("fDate").value = new Date().toLocaleDateString(S.lang==="id"?"id-ID":"en-GB",{ day:"numeric", month:"long", year:"numeric" });
+  for (let i=0;i<ROWS;i++){ $("q"+i).value=""; $("n"+i).value=""; $("p"+i).value=""; }
+  S.signed = false; renderSig(); calc();
+  const st = $("stamp"); st.hidden = true; st.className = "stamp"; $("formMsg").textContent = ""; UI.priceOk = false;
+  document.querySelectorAll(".need").forEach(el => el.classList.remove("need"));
+}
+function lockNota(lock){ $("sheet").querySelectorAll("input").forEach(el => el.disabled = lock); $("btnSign").disabled = lock; }
+function renderSig(){ $("sigLine").textContent = S.signed ? "Axia~" : ""; $("btnSign").textContent = S.signed ? t("unsign") : t("sign"); }
+
+/* ================= LAYOUT ================= */
+const narrowMQ = window.matchMedia ? matchMedia("(max-width: 760px)") : { matches:false, addEventListener(){} };
+const UI = { notaOpen:false, priceOk:false, cine:false };
+function layout(){
+  const narrow = narrowMQ.matches;
+  const hasNota = ["working","judging","judged"].includes(S.phase);
+  const open = hasNota && UI.notaOpen && S.phase!=="over";
+  $("notaPanel").classList.toggle("open", open);
+  $("notaPanel").setAttribute("aria-hidden", open ? "false" : "true");
+  for (const id of ["notaTab","btnNota"]){ $(id).hidden = !(hasNota && !open); $(id).textContent = S.phase==="working" ? t("writeNota") : t("openNota"); }
+  document.body.dataset.sheet = (narrow && open) ? "open" : "closed";
+  if (narrow) FX.view(open ? { cx:.5, cy:.25, fw:.96, fh:.24 } : { cx:.5, cy:.37, fw:.96, fh:.48 });
+  else FX.view(open ? { cx:.27, cy:.44, fw:.5, fh:.64 } : { cx:.5, cy:.43, fw:.92, fh:.66 });
+}
+narrowMQ.addEventListener && narrowMQ.addEventListener("change", layout);
+function placeFloaters(a){
+  if (!a) return;
+  const app = $("app"), W = app.clientWidth, H = app.clientHeight;
+  const hudB = UI.cine ? H*.11 + 10 : document.querySelector(".hud").getBoundingClientRect().bottom - app.getBoundingClientRect().top + 6;
+  const th = $("thoughtBox"), tw = th.offsetWidth, thh = th.offsetHeight;
+  let x = clamp(a.axia.x - tw/2, 8, W - tw - 8), y = Math.max(hudB, a.axia.y - thh - 18);
+  th.style.transform = `translate(${x}px,${y}px)`;
+  const pl = $("plate"), pw = pl.offsetWidth, ph = pl.offsetHeight;
+  x = clamp(a.boss.x - pw/2, 8, W - pw - 8); y = Math.max(hudB, a.boss.y - ph - 10);
+  pl.style.transform = `translate(${x}px,${y}px)`;
+}
+FX.onFrame(placeFloaters);
+
+/* ================= UI ================= */
+function setMood(m){ m = MOODS.includes(m) ? m : "dramatic"; S.mood = m; FX.mood(m); $("moodTag").textContent = T[S.lang].moods[m]; }
+function setSay(text, aside){
+  FX.thinking(false); FX.talk(text);
+  $("say").textContent = text;
+  const a = $("aside");
+  if (aside){ a.textContent = aside; a.dataset.label = t("asideLabel"); a.hidden = false; } else { a.hidden = true; a.textContent = ""; }
+}
+function setTyping(){ FX.thinking(true); $("say").innerHTML = '<span class="typing" aria-label="…"><i></i><i></i><i></i></span>'; $("aside").hidden = true; }
+function setThink(s){ $("think").textContent = s; }
+function status(s, bad){ const el = $("status"); el.textContent = s || (lastNote || aiLabel()); el.classList.toggle("bad", !!(bad || (!s && lastNote))); }
+function bigStamp(text, ok){
+  const b = $("bigstamp"); b.textContent = text; b.className = "bigstamp" + (ok ? " ok" : ""); b.hidden = false;
+  const v = FX.currentView ? FX.currentView() : { cx:.5, cy:.42 };
+  b.style.left = (v.cx*100) + "%"; b.style.top = (v.cy*100) + "%";
+  void b.offsetWidth; b.classList.add("hit");
+  clearTimeout(bigStamp.tm); bigStamp.tm = setTimeout(() => { b.hidden = true; }, 1750);
+}
+
+function clockStr(n){ const m = 8*60 + Math.round(n*(9*60)/NPD); return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); }
+function save(){ if (S.phase==="over") { store.del("axia-nota-save"); return; } store.set("axia-nota-save", JSON.stringify(Object.assign({}, S, { signed:false }))); }
+function renderHud(){
+  $("hDay").textContent = W().days[S.day-1]; $("lDay").textContent = clockStr(S.dayNo);
+  $("hNota").textContent = S.dayNo + "/" + NPD;
+  $("hOk").textContent = S.dayOk + "/" + QUOTA; $("okChip").classList.toggle("met", S.dayOk >= QUOTA);
+  FX.time(S.dayNo/NPD);
+  const m = $("meter"); if (m.children.length !== 10){ m.innerHTML = ""; for (let i=0;i<10;i++) m.appendChild(document.createElement("span")); }
+  const on = Math.ceil(S.patience/10); [...m.children].forEach((s,i) => s.classList.toggle("on", i<on));
+  const lvl = S.patience>66 ? "hi" : S.patience>33 ? "mid" : "lo";
+  m.dataset.lvl = lvl; m.setAttribute("aria-valuenow", S.patience); FX.level(lvl);
+  FX.writing(S.phase==="working");
+  $("notaNo").textContent = "No. " + String(S.no).padStart(4,"0");
+  const busy = ["loading","judging","asking"].includes(S.phase);
+  const nb = $("btnNext");
+  nb.textContent = S.phase==="judged" ? t("nextAfter") : S.phase==="error" ? t("retry") : t("next");
+  const dayFull = S.dayNo >= NPD;
+  nb.disabled = busy || ["over","report"].includes(S.phase) || dayFull; nb.hidden = S.phase==="working" || (S.phase==="judged" && dayFull);
+  $("btnSubmit").disabled = S.phase!=="working";
+  $("btnRefuse").hidden = S.phase!=="working";
+  $("btnAsk").disabled = busy || ["over","report"].includes(S.phase) || S.patience<=5;
+  $("memoText").textContent = S.cur ? S.cur.request : "";
+  lockNota(S.phase!=="working");
+  layout();
+}
+function renderAI(){
+  $("aiMode").value = AI.mode; $("aiUrl").value = AI.url; $("aiModel").value = AI.model;
+  $("oClaude").textContent = inClaude ? t("oClaude") : t("oClaudeOff"); $("oClaude").disabled = !inClaude;
+  $("oLocal").textContent = t("oLocal"); $("oScript").textContent = t("oScript");
+  $("localBox").hidden = AI.mode!=="local";
+  $("localHint").innerHTML = inClaude ? t("hintInClaude") : t("hintLocal");
+  $("aiTest").textContent = t("test"); $("lAI").textContent = t("ai"); $("lMode").textContent = t("mode"); $("btnCloseSet").textContent = t("done");
+}
+function applyLang(){
+  document.documentElement.lang = S.lang;
+  $("bID").setAttribute("aria-pressed", S.lang==="id"); $("bEN").setAttribute("aria-pressed", S.lang==="en");
+  const map = { btnRefuse:"refuseBtn", btnSkip:"skip", lNota:"notaDone", lOk:"okToday", lPat:"pat", btnNewGame:"newGame", bossPlate:"plate", dlgName:"plate", lTo:"to", lDate:"date", tQty:"qty", tItem:"item", tPrice:"price", tAmt:"amt", lTotal:"total", lRecv:"recv", lRegards:"regards", lAttn:"attn", lFine:"fine", btnSubmit:"submit", coAddr:"addr", btnAsk:"askBtn", btnRestart:"restart", lWho:"who", lMemo:"memo" };
+  for (const k in map) $(k).textContent = t(map[k]);
+  $("askInput").placeholder = t("askPh"); $("btnAsk").title = t("askHint"); $("aside").dataset.label = t("asideLabel");
+  $("btnSettings").setAttribute("aria-label", t("ai")); $("btnFull").setAttribute("aria-label", t("fs")); $("btnHide").setAttribute("aria-label", t("hideNota"));
+  if (!$("nogl").hidden) $("nogl").textContent = t("nogl");
+  setMood(S.mood || "sweet"); renderSig(); renderHud(); renderAI(); status();
+  if (S.phase==="intro"){ $("say").textContent = S.dayNo > 0 ? W().resume : W().morning[S.day-1]; $("aside").hidden = true; setThink(W().think[S.day-1]); }
+  if (S.phase==="report") showReport();
+  if (S.phase==="over") showEnding(S.ending || "resign");
+}
+
+/* ================= FLOW ================= */
+function normalizeReq(d){
+  if (!d || typeof d!=="object" || typeof d.request!=="string" || !d.request.trim()) throw { code:"invalid_json" };
+  const items = Array.isArray(d.items) ? d.items.filter(i => i && i.name).slice(0,4).map(i => ({ name:String(i.name).slice(0,60), qty:Math.max(1, Math.floor(Number(i.qty)||1)) })) : [];
+  return { request:d.request.slice(0,500), aside:typeof d.aside==="string" ? d.aside.slice(0,240) : "", mood:MOODS.includes(d.mood) ? d.mood : "dramatic", axia:typeof d.axia==="string" ? d.axia.slice(0,120) : "", items, to:typeof d.to==="string" ? d.to.slice(0,80) : "" };
+}
+function cannedReq(){ const list = CANNED[S.lang]; let i; do { i = Math.floor(Math.random()*list.length); } while (list.length>1 && i===S.cannedIdx); S.cannedIdx = i; return Object.assign({}, list[i]); }
+function cannedJudge(nota){
+  const J = CANNED_JUDGE[S.lang], fair = nota.rows.length >= Math.max(1, S.cur.items.length), whim = Math.random() < .22, ok = whim ? !fair : fair;
+  return { ok, reply:pick(ok ? J.ok : J.no), stamp:"", delta: ok ? -3 : (fair ? -20 : -10), mood: ok ? "sweet" : "furious", axia:pick(ok ? J.tOk : J.tNo) };
+}
+
+async function nextRequest(){
+  if (UI.cine || S.dayNo >= NPD || ["report","over","loading","judging","asking"].includes(S.phase)) return;
+  if (S.phase==="judged") S.no++;
+  FX.newTask();
+  S.phase = "loading"; UI.notaOpen = false; clearNota(); renderHud(); setTyping(); status(t("thinking"));
+  let data = null; lastNote = "";
+  try { data = normalizeReq(await aiJSON(requestPrompt())); }
+  catch(e){ if (handleAIError(e)==="retry"){ S.phase = "error"; setMood("suspicious"); setSay(errText(e), ""); status(" "); renderHud(); return; } }
+  if (!data) data = cannedReq();
+  S.cur = data; S.recent.push(data.request); if (S.recent.length>10) S.recent.shift();
+  S.items = (S.items || []).concat(data.items.slice(0,2).map(i => i.qty + " " + i.name)).slice(-8);
+  setMood(data.mood); setSay(data.request, data.aside); setThink(data.axia || "…");
+  S.phase = "working"; status(); renderHud(); save();
+  // let the player hear the boss before the nota slides in
+  setTimeout(() => { if (S.phase==="working"){ UI.notaOpen = true; layout(); if (!narrowMQ.matches) $("fTo").focus({ preventScroll:true }); } }, narrowMQ.matches ? 1800 : 700);
+}
+
+async function submitNota(e){
+  e.preventDefault();
+  if (S.phase!=="working") return;
+  const rows = readRows(), msg = $("formMsg"), sh = () => { const s = $("sheet"); s.classList.remove("shake"); void s.offsetWidth; s.classList.add("shake"); };
+  const nudge = (kind, el) => { setThink(pick(ST().forgot[kind])); FX.puzzled(); sh(); if (el){ el.classList.remove("need"); void el.offsetWidth; el.classList.add("need"); el.focus({ preventScroll:true }); el.scrollIntoView({ block:"nearest" }); } };
+  if (!S.cur){ msg.textContent = t("needTask"); return; }
+  if (!$("fTo").value.trim()) return nudge("to", $("fTo"));
+  if (!rows.length) return nudge("items", $("n0"));
+  if (!S.signed) return nudge("sign", $("btnSign"));
+  const free = [...Array(ROWS).keys()].find(i => $("n"+i).value.trim() && !Number(digits($("p"+i).value)));
+  if (free !== undefined && !UI.priceOk){ UI.priceOk = true; return nudge("price", $("p"+free)); }
+  msg.textContent = "";
+  const nota = { to:$("fTo").value.trim(), date:$("fDate").value.trim(), rows, total:rows.reduce((s,r) => s + r.qty*r.price, 0) };
+  S.phase = "judging"; if (narrowMQ.matches) UI.notaOpen = false; renderHud(); setTyping(); status(t("judging"));
+  const flight = FX.submit();
+  let v = null; lastNote = "";
+  try {
+    const d = await aiJSON(judgePrompt(nota));
+    if (!d || (d.verdict!=="approved" && d.verdict!=="rejected") || typeof d.reply!=="string") throw { code:"invalid_json" };
+    v = { ok:d.verdict==="approved", reply:d.reply.slice(0,400), stamp:String(d.stamp||"").slice(0,18), delta:clamp(Math.round(Number(d.patience)||(d.verdict==="approved" ? -2 : -12)),-25,5), mood:MOODS.includes(d.mood) ? d.mood : (d.verdict==="approved" ? "sweet" : "furious"), axia:typeof d.axia==="string" ? d.axia.slice(0,120) : "" };
+  } catch(err){
+    if (handleAIError(err)==="retry"){ await flight; FX.dropPaper(); S.phase = "working"; UI.notaOpen = true; setMood("suspicious"); setSay(errText(err), ""); status(" "); renderHud(); return; }
+  }
+  if (!v) v = cannedJudge(nota);
+  await flight;
+  await FX.verdict(v.ok);
+  S.done++; S.dayNo++;
+  if (v.ok){ S.ok++; S.dayOk++; } else { S.bad++; S.dayBad++; }
+  S.patience = clamp(S.patience + v.delta, 0, 100);
+  setMood(v.mood); setSay(v.reply, ""); setThink(v.axia || "…");
+  const label = v.stamp || (v.ok ? (S.lang==="id" ? "LUNAS" : "PAID") : (S.lang==="id" ? "DITOLAK" : "REJECTED"));
+  const st = $("stamp"); st.textContent = label; st.className = "stamp hit" + (v.ok ? " ok" : ""); st.hidden = false;
+  bigStamp(label, v.ok);
+  if (!v.ok) sh();
+  S.phase = "judged"; status(); renderHud(); save();
+  if (S.patience<=0) setTimeout(gameOver, 1900);
+  else if (S.dayNo >= NPD) setTimeout(endDay, 2600);
+}
+
+async function askBoss(e){
+  e.preventDefault();
+  const q = $("askInput").value.trim();
+  if (!q || ["loading","judging","asking","over"].includes(S.phase)) return;
+  const prev = S.phase; S.phase = "asking"; FX.ask();
+  S.patience = clamp(S.patience-5, 0, 100); renderHud(); setTyping(); status(t("thinking"));
+  let answered = false; lastNote = "";
+  try { const text = await aiText(askPrompt(q), tx => { $("say").textContent = tx; FX.thinking(false); FX.talk(tx); }); setSay(text.trim(), ""); answered = true; }
+  catch(err){ if (handleAIError(err)==="retry"){ setSay(errText(err), ""); answered = true; } }
+  if (!answered) setSay(pick(CANNED_JUDGE[S.lang].ask), "");
+  setMood(pick(["dramatic","suspicious","dreamy"]));
+  $("askInput").value = "";
+  S.phase = prev; status(); renderHud(); save();
+  if (S.patience<=0) setTimeout(gameOver, 1200);
+}
+
+function endDay(){
+  if (S.phase!=="judged" || S.dayNo < NPD) return;
+  S.log.push({ ok:S.dayOk, bad:S.dayBad, pass:S.dayOk >= QUOTA });
+  const pass = S.dayOk >= QUOTA;
+  S.rIdx = Math.floor(Math.random() * (pass ? W().pass : W().fail).length);
+  S.phase = "report"; UI.notaOpen = false; renderHud(); save();
+  showReport();
+}
+function showReport(){
+  const w = W(), last = S.log[S.log.length-1] || { ok:S.dayOk, pass:S.dayOk>=QUOTA };
+  $("rpTitle").textContent = w.rpTitle; $("rpWho").textContent = w.rpWho;
+  ["rpH1","rpH2","rpH3","rpH4"].forEach((id,i) => $(id).textContent = w.h[i]);
+  $("rpSub").textContent = w.sub(w.days[S.day-1], last.ok);
+  const tb = $("rpRows"); tb.innerHTML = "";
+  for (let i=0; i<DAYS; i++){
+    const L = S.log[i], tr = document.createElement("tr");
+    if (i === S.day-1) tr.className = "now";
+    const cells = [w.days[i], L ? "08:00" : "", L ? "17:00" : "", L ? L.ok + "/" + NPD : ""];
+    cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+    const td = document.createElement("td");
+    if (L){ const sp = document.createElement("span"); sp.className = "punch " + (L.pass ? "pass" : "fail"); sp.textContent = L.pass ? w.pass1 : w.fail1; td.appendChild(sp); }
+    tr.appendChild(td); tb.appendChild(tr);
+  }
+  const lines = last.pass ? w.pass : w.fail;
+  $("rpSay").textContent = lines[S.rIdx % lines.length];
+  const weekDone = last.pass && S.day >= DAYS;
+  $("rpNote").textContent = !last.pass ? w.noteFail : weekDone ? w.noteWeek : w.noteRest;
+  const b = $("btnReport");
+  b.textContent = !last.pass ? w.btnFail : weekDone ? w.btnWeek : w.btnRest;
+  b.className = "btn" + (last.pass ? "" : " red");
+  $("report").hidden = false; b.focus();
+}
+function refuse(){
+  if (S.phase!=="working" || UI.cine) return;
+  S.refused = (S.refused || 0) + 1; S.done++; S.dayNo++; S.dayBad++; S.bad++;
+  S.patience = clamp(S.patience + 8, 0, 100);
+  const R = ST().refuse[Math.min(S.refused, 3) - 1];
+  UI.notaOpen = false; clearNota(); FX.refuse(); FX.dropPaper();
+  setMood(S.refused >= 3 ? "dramatic" : "furious"); setSay(R.boss, ""); setThink(R.axia);
+  bigStamp(ST().refStamp, false);
+  S.phase = "judged"; status(); renderHud(); save();
+  if (S.refused >= 3){ S.endReason = "refused"; setTimeout(() => showEnding("resign"), 3000); return; }
+  if (S.dayNo >= NPD) setTimeout(endDay, 2600);
+}
+
+/* ---- cutscenes ---- */
+function cineOn(on){
+  UI.cine = on; document.body.classList.toggle("cine", on);
+  ["dialog","notaPanel"].forEach(id => { $(id).inert = on; }); document.querySelector(".hud").inert = on;
+  $("btnSkip").hidden = !on; if (!on){ $("caption").hidden = true; $("daycard").hidden = true; document.body.classList.remove("zzz"); }
+}
+function caption(text){ const c = $("caption"); c.textContent = text; c.hidden = false; c.classList.remove("pop"); void c.offsetWidth; c.classList.add("pop"); }
+function dayCard(){ const d = $("daycard"); $("dcDay").textContent = W().days[S.day-1].toUpperCase(); $("dcTime").textContent = "07:59"; d.hidden = false; d.classList.remove("pop"); void d.offsetWidth; d.classList.add("pop"); }
+async function playIntro(){
+  if (UI.cine) return;
+  cineOn(true); UI.notaOpen = false; layout();
+  const lines = ST().intro;
+  await FX.intro(i => { caption(lines[i]); if (i===3){ setMood("dramatic"); } });
+  cineOn(false);
+  S.introSeen = true; save();
+  setMood("sweet"); setSay(W().morning[0], ""); setThink(W().think[0]);
+}
+async function playNight(){
+  cineOn(true);
+  const lines = ST().night, item = (S.items && S.items.length) ? S.items[S.items.length-1] : "nota";
+  await FX.night(i => {
+    if (i===0) caption(lines[0]);
+    if (i===1){ caption(lines[1]); setMood("dreamy"); }
+    if (i===2){ $("caption").hidden = true; dayCard(); }
+    if (i===3){ caption(lines[2]); setMood("furious"); }
+  }, on => { document.body.classList.toggle("zzz", on); if (on) setThink(ST().zzz(item)); });
+  cineOn(false);
+  setMood("sweet"); setSay(W().morning[S.day-1], ""); setThink(W().think[S.day-1]);
+}
+function afterReport(){
+  const last = S.log[S.log.length-1];
+  $("report").hidden = true;
+  if (!last || !last.pass) return showEnding("fired");
+  if (S.day >= DAYS) return showEnding(S.ok >= PROMO ? "promoted" : "payday");
+  S.day++; S.dayNo = 0; S.dayOk = 0; S.dayBad = 0; S.no++; S.cur = null;
+  S.patience = clamp(S.patience + REST, 0, 100);
+  S.phase = "intro"; FX.newTask(); clearNota();
+  status(); renderHud(); save();
+  playNight();
+}
+
+/* ---- endings: a real letter ---- */
+const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+function joinList(a){ const w = ST(); if (!a.length) return w.nothing; if (a.length===1) return a[0]; return a.slice(0,-1).join(", ") + " " + w.and + " " + a[a.length-1]; }
+function esc(x){ return String(x).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[c]); }
+function renderLetter(kind){
+  const w = ST(), now = new Date(), last = S.log[S.log.length-1] || { ok:S.dayOk };
+  const d = { date:`${now.getDate()} ${w.months[now.getMonth()]} ${now.getFullYear()}`, year:now.getFullYear(), roman:ROMAN[now.getMonth()],
+    days:S.day, dayName:W().days[S.day-1], dayOk:last.ok, ok:S.ok, refused:S.endReason==="refused",
+    items:esc(joinList((S.items || []).slice(-3))) };
+  const L = (w.letters[kind] || w.letters.resign)(d), doc = $("doc");
+  let h = L.personal ? "" : `<div class="kop"><b>${w.kop[0]}</b><span>${w.kop[1]}</span></div>`;
+  for (const [type, v] of L.blocks){
+    if (type==="p") h += `<p>${v}</p>`;
+    else if (type==="right") h += `<p class="right">${v}</p>`;
+    else if (type==="center") h += `<p style="text-align:center">${v}</p>`;
+    else if (type==="table") h += `<table>${v.map(([a,b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("")}</table>`;
+    else if (type==="slip") h += `<table class="slip">${v.map(([a,b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("")}</table>`;
+    else if (type==="sign"){
+      const [greet, scrib, name, role] = v;
+      const mark = L.personal ? `<span class="meterai">METERAI<br>TEMPEL<b>10000</b></span>` : `<span class="cap">PT NOTA<br>JAYA ABADI<br>★ BATAM ★</span>`;
+      h += `<div class="sign"><span>${greet}</span><div class="area">${mark}<span class="scribble">${scrib}</span></div><b>${name}</b>${role ? `<span>${role}</span>` : ""}</div>`;
+    }
+  }
+  doc.innerHTML = h;
+}
+function showEnding(kind){
+  S.phase = "over"; S.ending = kind; $("report").hidden = true; renderHud();
+  S.best = Math.max(S.best, S.ok); store.set("axia-nota-best", String(S.best));
+  store.del("axia-nota-save");
+  renderLetter(kind);
+  $("overTitle").textContent = ST().endTitle[kind] || ST().endTitle.resign;
+  $("endnote").classList.toggle("good", kind==="payday" || kind==="promoted");
+  const st = $("overStats"); st.innerHTML = "";
+  [[t("sOk"),S.ok],[t("sNo"),S.bad],[t("sRef"),S.refused || 0],[t("sDays"),S.day],[t("sBest"),S.best]].forEach(([k,v]) => { const a = document.createElement("span"); a.textContent = k; const b = document.createElement("b"); b.textContent = v; st.append(a,b); });
+  $("btnRestart").textContent = t("restart");
+  $("over").hidden = false; $("over").querySelector(".endwrap").scrollTop = 0; $("btnRestart").focus({ preventScroll:true });
+}
+function gameOver(){ if (S.phase!=="over"){ S.endReason = S.endReason || "patience"; showEnding("resign"); } }
+function restart(){
+  S = freshState(S.lang, S.best);
+  store.del("axia-nota-save");
+  UI.notaOpen = false; $("over").hidden = true; $("report").hidden = true; FX.reset(); clearNota(); setMood("sweet"); applyLang();
+  playIntro();
+}
+
+/* ================= BOOT ================= */
+function start(data){
+  buildRows();
+  let saved = null;
+  if (data && typeof data==="object" && data.S && typeof data.S.patience==="number") saved = data.S;
+  else { try { const o = JSON.parse(store.get("axia-nota-save") || "null"); if (o && o.v===2 && o.phase!=="over") saved = o; } catch(e){} }
+  if (saved){
+    S = Object.assign(freshState(S.lang, S.best), saved);
+    if (S.phase==="error") S.phase = "intro";
+    if (["loading","judging","asking"].includes(S.phase)) S.phase = S.cur ? "working" : "intro";
+    UI.notaOpen = S.phase==="working";
+  }
+  clearNota();
+  $("btnNext").addEventListener("click", nextRequest);
+  $("sheet").addEventListener("submit", submitNota);
+  $("askForm").addEventListener("submit", askBoss);
+  $("btnSign").addEventListener("click", () => { S.signed = !S.signed; renderSig(); $("formMsg").textContent = ""; $("btnSign").classList.remove("need"); });
+  $("btnRestart").addEventListener("click", restart);
+  $("btnReport").addEventListener("click", afterReport);
+  $("btnRefuse").addEventListener("click", refuse);
+  $("btnSkip").addEventListener("click", () => FX.skip());
+  $("sheet").addEventListener("input", e => { if (e.target.classList) e.target.classList.remove("need"); if (e.target.id && e.target.id[0]==="p") UI.priceOk = false; });
+  let sureTimer = 0;
+  $("btnNewGame").addEventListener("click", () => {
+    const b = $("btnNewGame");
+    if (!sureTimer){ b.textContent = t("sure"); sureTimer = setTimeout(() => { sureTimer = 0; b.textContent = t("newGame"); }, 3000); return; }
+    clearTimeout(sureTimer); sureTimer = 0; $("settings").hidden = true; restart();
+  });
+  $("btnHide").addEventListener("click", () => { UI.notaOpen = false; layout(); });
+  ["notaTab","btnNota"].forEach(id => $(id).addEventListener("click", () => { UI.notaOpen = true; layout(); }));
+  const setLang = l => { S.lang = l; store.set("axia-nota-lang", l); applyLang(); };
+  $("bID").addEventListener("click", () => setLang("id"));
+  $("bEN").addEventListener("click", () => setLang("en"));
+  // settings modal
+  const openSet = () => { renderAI(); $("aiTestOut").textContent = ""; $("settings").hidden = false; $("aiMode").focus(); };
+  const closeSet = () => { $("settings").hidden = true; $("btnSettings").focus(); status(); };
+  $("btnSettings").addEventListener("click", openSet);
+  $("btnCloseSet").addEventListener("click", closeSet);
+  $("settings").addEventListener("click", e => { if (e.target.id==="settings") closeSet(); });
+  document.addEventListener("keydown", e => { if (e.key==="Escape" && !$("settings").hidden) closeSet(); });
+  $("aiMode").addEventListener("change", () => { AI.mode = $("aiMode").value; store.set("axia-ai-mode", AI.mode); lastNote = ""; renderAI(); status(); });
+  $("aiUrl").addEventListener("change", () => { AI.url = $("aiUrl").value.trim() || AI.url; store.set("axia-ai-url", AI.url); });
+  $("aiModel").addEventListener("change", () => { AI.model = $("aiModel").value.trim() || AI.model; store.set("axia-ai-model", AI.model); status(); });
+  $("aiTest").addEventListener("click", async () => {
+    const out = $("aiTestOut"); out.className = "testout"; out.textContent = t("testing"); $("aiTest").disabled = true;
+    AI.url = $("aiUrl").value.trim() || AI.url; AI.model = $("aiModel").value.trim() || AI.model;
+    try { const r = await localChat("Reply with only the word OK.", false); out.className = "testout ok"; out.textContent = t("testOk") + " " + r.slice(0,60); }
+    catch(e){ out.className = "testout bad"; out.textContent = t("testBad") + " " + ((e && e.message) || "error"); }
+    finally { $("aiTest").disabled = false; }
+  });
+  // fullscreen (optional: hidden where the browser refuses it)
+  const fsBtn = $("btnFull"), root = document.documentElement;
+  if (!(document.fullscreenEnabled && root.requestFullscreen)) fsBtn.hidden = true;
+  fsBtn.addEventListener("click", async () => {
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await root.requestFullscreen(); }
+    catch(e){ fsBtn.hidden = true; }
+  });
+  S.mood = S.cur ? S.cur.mood : (S.mood || "sweet");
+  applyLang();
+  if (S.cur && !["intro","report","over"].includes(S.phase)){ $("say").textContent = S.cur.request; setThink(S.cur.axia || "…"); }
+  if (S.phase==="intro" && S.day===1 && S.dayNo===0 && !S.introSeen) setTimeout(playIntro, 400);
+  try { window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(() => ({ S:JSON.parse(JSON.stringify(S)) })); } catch(e){}
+}
+const hot = window.claude && window.claude.hot;
+if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>
+
+</body></html>

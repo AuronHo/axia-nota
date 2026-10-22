@@ -1,0 +1,12 @@
+# Install PyTorch with CUDA FIRST (see SETUP.md step 6), e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128   (cu128 or newer is required for RTX 50-series)
+transformers==4.46.3
+trl==0.12.2
+peft==0.13.2
+accelerate==1.1.1
+datasets==3.1.0
+requests>=2.31
+# serving
+fastapi==0.115.5
+uvicorn==0.32.1
+httpx==0.28.0
